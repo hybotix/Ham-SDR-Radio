@@ -675,6 +675,7 @@ def build_sdrpp():
     log.info("  not just the primary radio used by this system.")
     run(
         ["cmake", "..",
+         f"-DCMAKE_INSTALL_PREFIX={OPENSSL_PREFIX}",
          "-DOPT_BUILD_AUDIO_SINK=ON",
          "-DOPT_BUILD_SOAPY_SOURCE=OFF",
          "-DOPT_BUILD_AIRSPY_SOURCE=ON",
