@@ -53,7 +53,7 @@ import logging
 import json
 import re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -61,7 +61,7 @@ from datetime import datetime
 
 LOG_DIR = Path("logs")
 LOG_DIR.mkdir(exist_ok=True)
-log_filename = LOG_DIR / f"init-{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}.log"
+log_filename = LOG_DIR / f"init-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.log"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -887,20 +887,20 @@ DEFAULT_SETTINGS = {
     "mqtt": {
         "host":    "localhost",
         "port":    1883,
-        "enabled": true
+        "enabled": True
     },
     "logging": {
         "db_path":   "logs/qso_log.db",
         "log_level": "INFO"
     },
     "aprs": {
-        "enabled":   false,
+        "enabled":   False,
         "interval":  600,
         "comment":   "Hybrid RobotiX Mobile Station",
         "freq_hz":   144390000
     },
     "tx_guard": {
-        "enabled": true
+        "enabled": True
     }
 }
 
