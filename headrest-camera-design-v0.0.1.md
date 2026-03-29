@@ -172,6 +172,30 @@ http://headcam.local        — Connect phone/tablet/laptop to camera WiFi,
 
 ## 6. Physical Design
 
+### 6.0 Thermal Management
+
+The Pi Zero 2W runs warm under sustained camera streaming. Thermal management
+is a first-class design concern, not an afterthought.
+
+**Hardware measures:**
+- Small adhesive heatsink on the SoC (~$2, included in BOM)
+- Enclosure design must include ventilation slots
+- Heatsink must have clearance inside the enclosure
+
+**Software monitoring:**
+- CPU temperature logged continuously via `/sys/class/thermal/thermal_zone0/temp`
+- Temperature published to Flask `/status` endpoint
+- Warning threshold: 70°C
+- Throttle threshold: 80°C (Pi Zero 2W will self-throttle at this point)
+- If temperature exceeds 75°C, stream resolution automatically reduced
+- Temperature displayed in the browser interface
+
+**Operating environment:**
+- Outdoor use in direct sunlight is a concern — enclosure color matters
+  (light colors reflect heat, dark colors absorb it)
+- Default enclosure color: light grey or white
+- User advised to avoid prolonged direct sunlight exposure
+
 ### 6.1 Camera Unit Enclosure
 
 - Weatherproof (splash resistant minimum)
