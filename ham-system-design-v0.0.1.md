@@ -40,6 +40,8 @@ The system provides:
 
 **ALL scripts and automation are written in Python 3.14.3. No exceptions.**
 
+**ALL configuration is stored in JSON formatted files. No exceptions.**
+
 - Bash, shell scripts, and other scripting languages are strictly prohibited
 - Build automation, installation, system checks, and service management are all implemented in Python
 - `subprocess` may be used where necessary to invoke external tools, but the invoking code is always Python
@@ -55,6 +57,7 @@ All Python files must include a version number as a suffix in the filename.
 - `rig_control-v0.0.1.py`
 - `tx_guard-v0.0.1.py`
 - `ham_system-v0.0.1.py`
+- `settings-v0.0.1.json`
 
 - Versioning follows semantic versioning (MAJOR.MINOR.PATCH)
 - All files start at `v0.0.1`
@@ -157,6 +160,7 @@ Adding a second radio requires only adding an entry to `RADIOS` — no code chan
 | APRS | `aprslib` or direct AX.25 |
 | MQTT | `paho-mqtt` (My Chairiet integration) |
 | UI | TBD — touch-friendly, large buttons |
+| Config Format | JSON — all configuration files use `.json` extension |
 
 ### 3.2 Module Structure (Planned)
 
@@ -181,7 +185,7 @@ ham_system/
 ├── ui/
 │   └── main_ui-v0.0.1.py            # Touch UI — per-radio panels (TBD)
 └── config/
-    └── settings-v0.0.1.py           # System configuration (RADIOS list)
+    └── settings-v0.0.1.json         # System configuration (RADIOS list)
 ```
 
 `radio_manager-v0.0.1.py` is the top-level orchestrator — it reads the `RADIOS` list from settings, instantiates one `rig_control`, `tx_guard`, and `state_machine` per entry, and manages their lifecycle. Adding a radio to the config automatically spawns a new set of instances at startup.
@@ -266,7 +270,9 @@ Because of the hamlib bug and the general risks of uncontrolled transmission, th
 
 ### 5.1 Configuration File
 
-All system configuration is stored in a single versioned Python settings file (`settings-v0.0.1.py`). No external config formats (YAML, INI, JSON) are used — configuration is pure Python for consistency with the all-Python policy.
+All system configuration is stored in a single versioned JSON file (`settings-v0.0.1.json`). JSON is the required format for all configuration — no Python config files, no YAML, no INI.
+
+Configuration is read at runtime via Python's standard `json` module. All modules access config by loading the JSON file directly.
 
 ### 5.2 Configuration Parameters
 
@@ -293,7 +299,7 @@ All system configuration is stored in a single versioned Python settings file (`
 
 ### 5.3 Runtime Overrides
 
-Command-line arguments may override any configuration parameter at runtime. The settings module provides a unified interface that merges file config with runtime overrides, with runtime values taking precedence.
+Command-line arguments may override any configuration parameter at runtime. The config loader merges the JSON file with runtime overrides, with runtime values taking precedence.
 
 ---
 

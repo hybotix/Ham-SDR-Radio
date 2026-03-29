@@ -16,7 +16,7 @@ This script handles:
   Step 7 — Verify radio serial port(s)
   Step 7.5 — Set all Python scripts executable
   Step 8 — Create startup script (start-v0.0.1.py)
-  Step 9 — Create default settings file if not present
+  Step 9 — Create default settings file if not present (JSON format)
 
 Package manager: apt/dpkg (Debian/Raspberry Pi OS)
 
@@ -46,6 +46,7 @@ import sys
 import subprocess
 import shutil
 import logging
+import json
 from pathlib import Path
 from datetime import datetime
 
@@ -97,7 +98,7 @@ FLRIG_DIR        = Path("build") / "flrig"
 FLRIG_BIN        = LOCAL_BIN / "flrig"
 
 BUILD_DIR        = Path("build")
-SETTINGS_PATH    = Path("config") / "settings-v0.0.1.py"
+SETTINGS_PATH    = Path("config") / "settings-v0.0.1.json"
 STARTUP_SCRIPT   = Path("start-v0.0.1.py")
 
 REQUIRED_PYTHON  = (3, 14, 3)
@@ -666,243 +667,72 @@ def verify_g90_port():
 # Step 9 — Create default settings file
 # ---------------------------------------------------------------------------
 
-DEFAULT_SETTINGS = """\
-\"\"\"
-settings-v0.0.1.py -- Ham System Configuration
-Project: Ham System -- N7PKT Integrated Ham Radio Control Platform
-Version: 0.0.1
+DEFAULT_SETTINGS = {
+    "_version": "0.0.1",
+    "_description": "Ham System Configuration — N7PKT Integrated Ham Radio Control Platform",
+    "operator": {
+        "callsign":    "N7PKT",
+        "grid_square": ""
+    },
+    "radios": [
+        {
+            "index":           1,
+            "name":            "{radio_name}",
+            "model":           "{radio_model}",
+            "port":            "{rig_port}",
+            "baud":            "{rig_baud}",
+            "poll_interval":   0.25,
+            "audio_interface": "de19",
+            "audio_device":    "your-audio-device"
+        }
+    ],
+    "wsjtx": {
+        "udp_host": "127.0.0.1",
+        "udp_port": 2237
+    },
+    "mqtt": {
+        "host":    "localhost",
+        "port":    1883,
+        "enabled": true
+    },
+    "logging": {
+        "db_path":   "logs/qso_log.db",
+        "log_level": "INFO"
+    },
+    "aprs": {
+        "enabled":   false,
+        "interval":  600,
+        "comment":   "Hybrid RobotiX Mobile Station",
+        "freq_hz":   144390000
+    },
+    "tx_guard": {
+        "enabled": true
+    }
+}
 
-Edit this file to match your hardware and environment.
-All settings can be overridden at runtime via command-line arguments.
-\"\"\"
-
-VERSION = "0.0.1"
-
-# ---------------------------------------------------------------------------
-# Operator
-# ---------------------------------------------------------------------------
-
-CALLSIGN    = "N7PKT"
-GRID_SQUARE = ""                    # Maidenhead grid square -- set before operating
-
-# ---------------------------------------------------------------------------
-# Hardware Interface
-# ---------------------------------------------------------------------------
-
-# Select active interface: "de19" (ACC port / DE-19) or "digirig"
-# ---------------------------------------------------------------------------
-# Radio Configuration
-# One dict per connected radio — each operates fully independently.
-# Add additional radios by appending entries to this list.
-# Radio index is used in MQTT topics: console/radio/{{index}}/...
-# ---------------------------------------------------------------------------
-
-RADIOS = [
-    {{
-        "index":           1,
-        "name":            "{radio_name}",
-        "model":           "{radio_model}",
-        "port":            "{rig_port}",   # Serial port for CAT control
-        "baud":            {rig_baud},     # CAT baud rate
-        "poll_interval":   0.25,           # CAT polling interval in seconds
-        "audio_interface": "de19",         # "de19" or "digirig"
-        "audio_device":    "your-audio-device",  # Update to match radio audio device
-    }},
-    # Add additional radios here:
-    # {{
-    #     "index":           2,
-    #     "name":            "...",
-    #     "model":           "...",
-    #     "port":            "/dev/ttyUSB1",
-    #     "baud":            ...,
-    #     "poll_interval":   0.25,
-    #     "audio_interface": "...",
-    #     "audio_device":    "...",
-    # }},
-]
-
-# ---------------------------------------------------------------------------
-# WSJT-X
-# ---------------------------------------------------------------------------
-
-WSJTX_UDP_HOST = "127.0.0.1"
-WSJTX_UDP_PORT = 2237
-
-# ---------------------------------------------------------------------------
-# MQTT (My Chairiet integration)
-# ---------------------------------------------------------------------------
-
-MQTT_HOST    = "localhost"
-MQTT_PORT    = 1883
-MQTT_ENABLED = True
-
-# ---------------------------------------------------------------------------
-# QSO Logging
-# ---------------------------------------------------------------------------
-
-LOG_DB_PATH = "logs/qso_log.db"
-
-# ---------------------------------------------------------------------------
-# APRS
-# ---------------------------------------------------------------------------
-
-APRS_ENABLED  = False               # Disabled by default -- enable explicitly
-APRS_INTERVAL = 600                 # Beacon interval in seconds (default 10 min)
-APRS_COMMENT  = "Hybrid RobotiX Mobile Station"
-APRS_FREQ_HZ  = 144_390_000         # 144.390 MHz -- North America APRS
-
-# ---------------------------------------------------------------------------
-# TX Guard
-# ---------------------------------------------------------------------------
-
-TX_GUARD_ENABLED = True             # Must remain True -- do not disable
-
-# ---------------------------------------------------------------------------
-# Logging verbosity
-# ---------------------------------------------------------------------------
-
-LOG_LEVEL = "INFO"                  # DEBUG / INFO / WARNING / ERROR
-"""
-
-
-
-
-# ---------------------------------------------------------------------------
-# Step 7.5 - Set all Python scripts executable
-# ---------------------------------------------------------------------------
-
-def make_scripts_executable():
-    log.info("")
-    log.info("Step 7.5: Setting all Python scripts executable...")
-
-    repo_path = Path(__file__).resolve().parent
-    scripts = list(repo_path.rglob("*.py"))
-
-    if not scripts:
-        log.info("  No Python scripts found.")
-        return
-
-    for script in sorted(scripts):
-        current = script.stat().st_mode
-        new_mode = current | 0o755
-        if current != new_mode:
-            script.chmod(new_mode)
-            log.info(f"  chmod +x {script.relative_to(repo_path)}")
-        else:
-            log.info(f"  already executable: {script.relative_to(repo_path)}")
-
-    log.info(f"  {len(scripts)} script(s) set executable -- OK")
-
-# ---------------------------------------------------------------------------
-# Step 8 — Create startup script
-# ---------------------------------------------------------------------------
-
-def create_startup_script():
-    log.info("")
-    log.info("Step 8: Creating startup script...")
-
-    if STARTUP_SCRIPT.exists():
-        log.info(f"  {STARTUP_SCRIPT} already exists -- skipping")
-        return
-
-    repo_path = Path(__file__).resolve().parent
-
-    lines = [
-        '#!/usr/bin/env python3',
-        '"""',
-        'start-v0.0.1.py -- Ham System Startup Script',
-        'Project: Ham System -- N7PKT Integrated Ham Radio Control Platform',
-        'Author:  Dale -- Hybrid RobotiX / The Accessibility Files',
-        'Version: 0.0.1',
-        '',
-        'Activates the Ham-SDR-Radio virtual environment, changes into the',
-        'repo directory, and starts the Ham System.',
-        '',
-        'Usage: python3 start-v0.0.1.py',
-        '"""',
-        '',
-        'VERSION = "0.0.1"',
-        '',
-        'import os',
-        'import sys',
-        'from pathlib import Path',
-        '',
-        f'REPO_PATH     = Path("{repo_path}")',
-        f'VENV_PATH     = Path("{VENV_PATH}")',
-        'VENV_PYTHON   = VENV_PATH / "bin" / "python3"',
-        'VENV_ACTIVATE = VENV_PATH / "bin" / "activate"',
-        '',
-        '',
-        'def main():',
-        '    print("=" * 70)',
-        '    print("  Ham System Startup")',
-        '    print("  N7PKT Integrated Ham Radio Control Platform")',
-        '    print(f"  Version {VERSION}")',
-        '    print("  Hybrid RobotiX / The Accessibility Files")',
-        '    print("  I. WILL. NEVER. GIVE. UP. OR. SURRENDER.")',
-        '    print("=" * 70)',
-        '    print()',
-        '',
-        '    if not VENV_PYTHON.exists():',
-        '        print(f"FATAL: Virtual environment not found at {VENV_PATH}")',
-        '        print( "       Run init-v0.0.1.py to initialize the system first.")',
-        '        sys.exit(1)',
-        '',
-        '    if not REPO_PATH.exists():',
-        '        print(f"FATAL: Repo not found at {REPO_PATH}")',
-        '        sys.exit(1)',
-        '',
-        '    os.chdir(REPO_PATH)',
-        '    print(f"  Working directory : {REPO_PATH}")',
-        '    print(f"  Virtual env       : {VENV_PATH}")',
-        '    print(f"  Python            : {VENV_PYTHON}")',
-        '    print()',
-        '',
-        '    # Re-invoke under venv Python if not already running inside it',
-        '    if Path(sys.executable).resolve() != Path(str(VENV_PYTHON)).resolve():',
-        '        print("  Activating virtual environment...")',
-        '        os.execv(str(VENV_PYTHON), [str(VENV_PYTHON)] + sys.argv)',
-        '',
-        '    # Running inside venv from here',
-        '    print("  Virtual environment active -- OK")',
-        '    print()',
-        '    print("  Ham System starting...")',
-        '    print("  (Main entry point not yet implemented)")',
-        '',
-        '',
-        'if __name__ == "__main__":',
-        '    main()',
-    ]
-
-    STARTUP_SCRIPT.write_text("\n".join(lines) + "\n")
-    STARTUP_SCRIPT.chmod(0o755)
-    log.info(f"  {STARTUP_SCRIPT} created -- OK")
-    log.info("")
-    log.info("  To start the Ham System:")
-    log.info(f"    python3 {STARTUP_SCRIPT}")
-    log.info("")
-    log.info("  To activate the venv manually:")
-    log.info(f"    source {VENV_ACTIVATE}")
-    log.info(f"    cd {repo_path}")
 
 def create_settings(radio_profile: dict):
     log.info("")
     log.info("Step 9: Checking settings file...")
+
     if SETTINGS_PATH.exists():
         log.info(f"  {SETTINGS_PATH} already exists — skipping")
         log.info(f"  NOTE: If you changed radio selection, update the RADIOS list")
         log.info(f"        in {SETTINGS_PATH} manually.")
         return
+
     log.info(f"  Creating default settings file: {SETTINGS_PATH}")
-    settings_content = DEFAULT_SETTINGS.format(
-        radio_name  = radio_profile["name"],
-        radio_model = radio_profile["model"],
-        rig_baud    = radio_profile["baud"],
-        rig_port    = radio_profile["port_hint"],
-    )
-    SETTINGS_PATH.write_text(settings_content)
-    log.info(f"  {SETTINGS_PATH} created for {radio_profile['name']} — OK")
+
+    settings = json.loads(json.dumps(DEFAULT_SETTINGS))  # deep copy
+    settings["radios"][0]["name"]  = radio_profile["name"]
+    settings["radios"][0]["model"] = radio_profile["model"]
+    settings["radios"][0]["port"]  = radio_profile["port_hint"]
+    settings["radios"][0]["baud"]  = radio_profile["baud"]
+
+    SETTINGS_PATH.write_text(json.dumps(settings, indent=4) + "\n")
+    log.info(f"  {SETTINGS_PATH} created — OK")
     log.info("  IMPORTANT: Review and edit settings before running Ham System.")
+
 
 
 # ---------------------------------------------------------------------------
