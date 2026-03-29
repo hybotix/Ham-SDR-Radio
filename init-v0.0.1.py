@@ -12,7 +12,7 @@ This script handles:
   Step 4 — Check/build SDR++ from latest source
   Step 5 — Check/build FlRig from latest source
   Step 6 — Install Python dependencies via pip
-  Step 7 — Verify G90 serial port
+  Step 7 — Verify radio serial port
   Step 8 — Create default settings file if not present
 
 Safe to re-run — all steps are idempotent.
@@ -138,8 +138,8 @@ PYTHON_DEPS = [
     "aprslib",
 ]
 
-# G90 serial port candidates (checked in order)
-G90_PORT_CANDIDATES = [
+# Radio serial port candidates (checked in order)
+RADIO_PORT_CANDIDATES = [
     "/dev/ttyUSB0",
     "/dev/ttyUSB1",
     "/dev/ttyUSB2",
@@ -483,26 +483,26 @@ def install_python_deps():
 
 
 # ---------------------------------------------------------------------------
-# Step 7 — Verify G90 serial port
+# Step 7 — Verify radio serial port
 # ---------------------------------------------------------------------------
 
 def verify_g90_port():
     log.info("")
-    log.info("Step 7: Verifying G90 serial port...")
+    log.info("Step 7: Verifying radio serial port...")
     found = None
-    for port in G90_PORT_CANDIDATES:
+    for port in RADIO_PORT_CANDIDATES:
         if Path(port).exists():
             found = port
             break
 
     if found:
-        log.info(f"  G90 serial port found: {found} — OK")
-        log.info("  NOTE: Verify this is the G90 and update RIG_PORT in settings if needed.")
+        log.info(f"  Radio serial port found: {found} — OK")
+        log.info("  NOTE: Verify this is the correct port and update RIG_PORT in settings if needed.")
     else:
-        log.warning("  WARNING: No G90 serial port detected on any candidate path:")
-        for port in G90_PORT_CANDIDATES:
+        log.warning("  WARNING: No radio serial port detected on any candidate path:")
+        for port in RADIO_PORT_CANDIDATES:
             log.warning(f"    {port}")
-        log.warning("  The G90 may not be connected or may appear on a different port.")
+        log.warning("  The radio may not be connected or may appear on a different port.")
         log.warning(f"  Update RIG_PORT in {SETTINGS_PATH} when the radio is connected.")
         log.warning("  Continuing — this is non-fatal.")
 
@@ -534,11 +534,11 @@ GRID_SQUARE = ""                    # Maidenhead grid square -- set before opera
 # Hardware Interface
 # ---------------------------------------------------------------------------
 
-# Select active interface: "de19" (G90 ACC port) or "digirig"
+# Select active interface: "de19" (ACC port / DE-19) or "digirig"
 AUDIO_INTERFACE = "de19"
 
 # ---------------------------------------------------------------------------
-# G90 CAT Control
+# Radio CAT Control
 # ---------------------------------------------------------------------------
 
 # Radio: {radio_name}
@@ -552,9 +552,9 @@ RIG_POLL_INTERVAL = 0.25            # CAT polling interval in seconds
 # ---------------------------------------------------------------------------
 
 # ALSA device name -- update to match your interface
-# de19:    typically "G90 Audio" or similar
+# de19:    typically the radio's USB audio device name
 # digirig: typically "DigiRig" or check via: python3.14 -m sounddevice
-AUDIO_DEVICE = "G90 Audio"
+AUDIO_DEVICE = "G90 Audio"    # Update to match your radio's audio device
 
 # ---------------------------------------------------------------------------
 # WSJT-X

@@ -13,10 +13,10 @@
 
 ### 1.1 Purpose
 
-The Ham System is a Python-based integrated control platform for the Xiegu G90 HF transceiver, designed to run on the Raspberry Pi 5 ("hammer") and serve as a fully featured mobile amateur radio station integrated with the My Chairiet wheelchair platform.
+The Ham System is a Python-based integrated control platform for HF transceivers, designed to run on the Raspberry Pi 5 ("hammer") and serve as a fully featured mobile amateur radio station integrated with the My Chairiet wheelchair platform. The initial supported radio is the Xiegu G90.
 
 The system provides:
-- Safe, automated CAT control of the Xiegu G90 without triggering known hamlib bugs
+- Safe, automated CAT control of supported radios without triggering known hamlib bugs
 - Digital mode operation (FT8, WSPR, CW keying)
 - QSO logging and APRS position beaconing
 - Integration with the My Chairiet MQTT message bus for telemetry and alerts
@@ -25,7 +25,7 @@ The system provides:
 ### 1.2 Goals
 
 - Replace ad-hoc radio control scripts with a coherent, documented system
-- Provide a safe abstraction layer over G90 CAT control that guards against the hard-transmit bug
+- Provide a safe abstraction layer over radio CAT control, with per-radio guards against known bugs
 - Support both attended and unattended operation
 - Integrate cleanly with the broader My Chairiet platform
 - Remain fully open source
@@ -33,7 +33,7 @@ The system provides:
 ### 1.3 Non-Goals
 
 - This system does not implement its own FT8/WSPR decoder — it interfaces with WSJT-X via UDP
-- This system does not replace the G90 head unit — physical controls remain primary for manual operation
+- This system does not replace the radio's physical head unit — physical controls remain primary for manual operation
 - This system does not manage audio hardware directly beyond routing
 
 ### 1.4 Scripting Policy
@@ -167,7 +167,7 @@ ham_system/
 
 ### 3.3 CAT Control Strategy
 
-The Ham System will use **direct `pyserial` communication** with the G90 using raw CI-V commands. This completely bypasses hamlib and eliminates exposure to the known hard-transmit bug.
+The Ham System will use **direct `pyserial` communication** with supported radios using raw CAT commands (CI-V for the Xiegu G90). This completely bypasses hamlib and eliminates exposure to known hamlib bugs.
 
 The `rig_control.py` module will implement:
 - Frequency read/set
@@ -235,10 +235,10 @@ All system configuration is stored in a single versioned Python settings file (`
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `RIG_PORT` | Serial port for G90 CAT control | `/dev/ttyUSB0` |
-| `RIG_BAUD` | G90 baud rate | `19200` |
+| `RIG_PORT` | Serial port for radio CAT control | `/dev/ttyUSB0` |
+| `RIG_BAUD` | CAT baud rate for selected radio | `19200` |
 | `AUDIO_INTERFACE` | Hardware interface type (`de19` or `digirig`) | `de19` |
-| `AUDIO_DEVICE` | ALSA audio device name for selected interface | `G90 Audio` |
+| `AUDIO_DEVICE` | ALSA audio device name for selected interface | *(radio dependent)* |
 | `RIG_POLL_INTERVAL` | CAT polling interval (seconds) | `0.25` |
 | `WSJTX_UDP_HOST` | WSJT-X UDP interface host | `127.0.0.1` |
 | `WSJTX_UDP_PORT` | WSJT-X UDP interface port | `2237` |
@@ -311,7 +311,7 @@ CREATE TABLE tx_events (
 
 ### 7.1 Overview
 
-The APRS module provides automatic position beaconing over RF using the G90. APRS is disabled by default and must be explicitly enabled in configuration.
+The APRS module provides automatic position beaconing over RF using the active radio. APRS is disabled by default and must be explicitly enabled in configuration.
 
 ### 7.2 Beacon Content
 
@@ -325,7 +325,7 @@ Each beacon transmits:
 
 Standard APRS frequency for North America: **144.390 MHz**
 
-The APRS module will command the G90 to QSY to 144.390 MHz, transmit the beacon, then return to the prior operating frequency and mode. This QSY sequence is handled entirely within the TX guard framework.
+The APRS module will command the radio to QSY to 144.390 MHz, transmit the beacon, then return to the prior operating frequency and mode. This QSY sequence is handled entirely within the TX guard framework.
 
 ### 7.4 Implementation
 
@@ -347,11 +347,11 @@ The APRS module will command the G90 to QSY to 144.390 MHz, transmit the beacon,
 
 ### 8.1 Overview
 
-The CW keyer module (`cw_keyer-v0.0.1.py`) provides software-driven CW keying of the G90 via the ACC port or RTS/DTR lines on the CAT serial interface.
+The CW keyer module (`cw_keyer-v0.0.1.py`) provides software-driven CW keying of the active radio via the ACC port or RTS/DTR lines on the CAT serial interface.
 
 ### 8.2 Keying Method
 
-CW keying is achieved by asserting the RTS or DTR line on the G90's USB serial interface to key the transmitter, with timing controlled by the Python keyer. No external keyer hardware is required for basic operation.
+CW keying is achieved by asserting the RTS or DTR line on the radio's USB serial interface to key the transmitter, with timing controlled by the Python keyer. No external keyer hardware is required for basic operation.
 
 ### 8.3 Features
 
@@ -360,7 +360,7 @@ CW keying is achieved by asserting the RTS or DTR line on the G90's USB serial i
 - Straight key input support
 - Keyboard CW (type to send)
 - Macro / message memory (stored in settings)
-- Full QSK (break-in) support — the G90 is polled between elements for incoming signals
+- Full QSK (break-in) support — the radio is polled between elements for incoming signals
 
 ### 8.4 CW Logging
 
@@ -370,7 +370,7 @@ All CW QSOs are logged to the QSO database with mode set to `CW`. RST sent/recei
 
 - CW keying is subject to the TX guard layer — no unintended keying
 - WPM range: 5–40 WPM (configurable)
-- Sidetone is provided by the G90 hardware — no software sidetone required
+- Sidetone is provided by the radio hardware — no software sidetone required
 
 ---
 
@@ -406,7 +406,7 @@ tests/
 
 ### 9.4 Hardware-in-the-Loop Testing
 
-Tests that require the G90 are gated behind a `--hardware` flag. Without this flag, a mock serial interface is used so tests can run without the radio connected. This allows development and testing on any machine.
+Tests that require physical radio hardware are gated behind a `--hardware` flag. Without this flag, a mock serial interface is used so tests can run without the radio connected. This allows development and testing on any machine.
 
 ### 9.5 TX Guard Testing
 
@@ -433,7 +433,7 @@ The TX guard is tested exhaustively — it is safety-critical code. Tests cover:
 - [ ] TX guard layer (`tx_guard-v0.0.1.py`)
 - [ ] Radio state machine (`state_machine-v0.0.1.py`)
 - [ ] Unit tests passing with mock serial interface
-- [ ] Hardware-in-the-loop tests passing with G90 connected
+- [ ] Hardware-in-the-loop tests passing with radio connected
 
 ### Phase 2 — Logging
 - [ ] QSO database (`qso_log-v0.0.1.py`)
@@ -451,7 +451,7 @@ The TX guard is tested exhaustively — it is safety-critical code. Tests cover:
 - [ ] CW keyer (`cw_keyer-v0.0.1.py`)
 - [ ] Keyboard CW operational
 - [ ] Iambic paddle input working
-- [ ] Full QSK verified on G90
+- [ ] Full QSK verified on radio
 - [ ] CW QSOs logging correctly
 
 ### Phase 5 — APRS
