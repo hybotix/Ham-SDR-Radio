@@ -533,23 +533,27 @@ The TX guard is tested exhaustively — it is safety-critical code. Tests cover:
 
 ---
 
-## 11. License Validation & Privilege Enforcement
+## 11. License Advisor
 
-### 11.1 Overview
+### 11.1 Philosophy
 
-The Ham System validates the operator's amateur radio license against the
-appropriate licensing authority database and enforces feature availability
-based on the privileges granted by their license class. Only features the
-operator is legally permitted to use will be enabled.
+The Ham System includes a license advisor that helps operators stay within their
+legal privileges. This is a **helper, not a gatekeeper.**
 
-This is not optional. The system will not operate without a validated license.
+- The operator is **always** the responsible party under FCC/ISED/Ofcom regulations
+- The system will **never block** any operation based on license class
+- The system **will warn** clearly and prominently if an action appears to exceed
+  the operator's known privileges
+- Warnings are informational only — the operator may acknowledge and proceed
+- All warnings are logged with timestamp for the operator's own records
+- This feature exists to help Hams stay out of trouble, not to enforce the rules
 
 ### 11.2 License Authorities Supported
 
 | Authority | Country | License Classes | Lookup Method |
 |-----------|---------|-----------------|---------------|
 | FCC | United States | Technician, General, Extra | Live API — callook.info |
-| ISED | Canada | Basic, Basic with Honours, Advanced | Cached local DB — ISED ZIP download |
+| ISED | Canada | Basic, Basic with Honours, Advanced | Cached local DB — ISED ZIP |
 | Ofcom | United Kingdom | Foundation, Intermediate, Full | Cached local DB — Ofcom open data |
 
 ### 11.3 Callsign Prefix Detection
@@ -567,109 +571,83 @@ The licensing authority is automatically determined from the callsign prefix:
 **US (FCC) — Live API:**
 - Endpoint: `https://callook.info/{callsign}/json`
 - Returns: callsign, operator class, status, expiry date, grid square
-- Updated: Daily from FCC database snapshots
-- No API key required
+- No API key required — free public service updated daily from FCC snapshots
 - Falls back to cached result if offline
 
 **Canada (ISED) — Local Cache:**
 - Source: `https://apc-cap.ic.gc.ca/datafiles/amateur.zip`
-- Downloaded and cached locally on first run, refreshed periodically
+- Downloaded and cached locally, refreshed every 7 days
 - Queried locally — no network dependency after initial download
 
 **UK (Ofcom) — Local Cache:**
 - Source: Ofcom Spectrum Open Data release
-- Downloaded and cached locally on first run, refreshed periodically
+- Downloaded and cached locally, refreshed every 7 days
 - Queried locally — no network dependency after initial download
 
-### 11.5 License Class → Privilege Mapping
+### 11.5 License Class Privileges
 
 #### United States (FCC)
 
-| Class | HF Privileges | VHF/UHF | Power | Features Enabled |
-|-------|--------------|---------|-------|-----------------|
-| Technician | 10M CW/SSB limited, no HF phone | Full | 200W | 10M CW, VHF/UHF digital |
-| General | All HF bands with some restrictions | Full | 1500W | Most HF bands, all digital modes |
-| Extra | Full HF privileges | Full | 1500W | All features unlocked |
+| Class | HF | VHF/UHF | Max Power |
+|-------|----|---------|-----------|
+| Technician | 10M limited CW/SSB/digital only | Full | 200W |
+| General | Most HF bands with some restrictions | Full | 1500W |
+| Extra | All HF bands, full privileges | Full | 1500W |
 
 #### Canada (ISED)
 
-| Class | Privileges | Features Enabled |
-|-------|-----------|-----------------|
-| Basic | HF (with restrictions), VHF/UHF | Standard HF, VHF/UHF |
-| Basic with Honours | Full HF, all bands | All bands |
-| Advanced | Full privileges, can build transmitters | All features unlocked |
+| Class | Privileges |
+|-------|-----------|
+| Basic | HF with restrictions, VHF/UHF |
+| Basic with Honours | Full HF, all bands below 30MHz |
+| Advanced | Full privileges |
 
 #### United Kingdom (Ofcom)
 
-| Class | Privileges | Features Enabled |
-|-------|-----------|-----------------|
-| Foundation | Limited bands, 10W max | Limited band/power features |
-| Intermediate | More bands, 50W max | Extended band access |
-| Full | All bands, full power | All features unlocked |
+| Class | Privileges | Max Power |
+|-------|-----------|-----------|
+| Foundation | Limited bands | 10W |
+| Intermediate | More bands | 50W |
+| Full | All bands | Full |
 
-### 11.6 Implementation
+### 11.6 Warning Triggers
 
-The license validation module (`license_validator-v0.0.1.py`) handles:
+The license advisor warns the operator when:
 
-- Callsign prefix detection → authority routing
-- Live API query (US) or local cache query (CA/UK)
-- License status verification (active, expired, suspended)
-- License class determination
-- Privilege profile generation
-- Feature enable/disable based on privilege profile
-- Results cached in `config/license-v0.0.1.json`
-- Cache refresh on startup if older than 24 hours
+- Operating on a frequency outside their license class band privileges
+- Using a mode not permitted on the selected frequency for their class
+- Transmitting at power levels exceeding their class maximum
+- Attempting APRS beaconing on bands not permitted for their class
 
-### 11.7 Feature Gating
+Warnings are **never** shown for receive-only operations.
 
-Features are gated by privilege profile stored in `config/license-v0.0.1.json`:
+### 11.7 Offline Operation
+
+If the network is unavailable and no cache exists, the license advisor operates
+in degraded mode — a single notice is shown that license verification is
+unavailable and warnings are suppressed. The system continues to operate normally.
+
+If a cached result exists but is stale, it is used with a notice that it may
+be out of date.
+
+### 11.8 Implementation
+
+**Module:** `license_advisor-v0.0.1.py`
+
+License data is cached in `config/license_cache-v0.0.1.json`:
 
 ```json
 {
-    "callsign":        "YOUR_CALLSIGN",
-    "authority":       "FCC",
-    "license_class":   "General",
-    "status":          "VALID",
-    "expiry":          "2030-01-01",
-    "last_verified":   "2026-03-29T10:00:00Z",
-    "privileges": {
-        "hf_phone":        true,
-        "hf_cw":           true,
-        "hf_digital":      true,
-        "vhf_uhf":         true,
-        "max_power_w":     1500,
-        "bands_allowed":   ["160m", "80m", "40m", "20m", "15m", "10m", "6m", "2m", "70cm"],
-        "extra_bands":     false
-    }
+    "callsign":      "YOUR_CALLSIGN",
+    "authority":     "FCC",
+    "license_class": "General",
+    "status":        "VALID",
+    "expiry":        "2030-01-01",
+    "last_verified": "2026-03-29T10:00:00Z",
+    "grid_square":   ""
 }
 ```
 
-### 11.8 Enforcement Policy
-
-- The system **will not transmit** on any band or mode not permitted by the
-  validated license class
-- UI controls for prohibited features are hidden or disabled, not merely warned
-- License status is re-verified on every startup
-- Expired or suspended licenses disable all transmit features immediately
-- The operator may not override privilege enforcement
-
-### 11.9 Module Location
-
-```
-core/
-└── license_validator-v0.0.1.py   # License validation and privilege enforcement
-config/
-└── license-v0.0.1.json           # Cached license and privilege profile
-```
-
-### 11.10 Development Status
-
-**Planned — not yet implemented.**
-
-This module is a high priority development item. No transmit features will be
-enabled until this module is complete and the operator's license is validated.
-
----
 *Document is a living design artifact. Architecture evolves as development progresses.*  
 *— Dale — Hybrid RobotiX / The Accessibility Files*  
 *"I. WILL. NEVER. GIVE. UP. OR. SURRENDER."*
