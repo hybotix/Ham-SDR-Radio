@@ -18,6 +18,7 @@ This script handles:
   Step 7.5 — Set all Python scripts executable
   Step 8 — Create startup script (start-v0.0.1.py)
   Step 9 — Create default settings file if not present (JSON format)
+  Step 10 — Create unversioned symlinks to current scripts
 
 Package manager: apt/dpkg required. Debian-based systems ONLY.
                  (Debian, Raspberry Pi OS, Ubuntu, and derivatives)
@@ -50,6 +51,7 @@ import subprocess
 import shutil
 import logging
 import json
+import re
 from pathlib import Path
 from datetime import datetime
 
@@ -796,6 +798,53 @@ def create_settings(radio_profile: dict):
 
 
 
+
+# ---------------------------------------------------------------------------
+# Step 10 - Create unversioned symlinks to current scripts
+# ---------------------------------------------------------------------------
+
+def create_symlinks():
+    """
+    Create unversioned symlinks pointing to the current versioned scripts.
+    e.g. init -> init-v0.0.1.py
+         start -> start-v0.0.1.py
+    When a script is versioned up, only the symlink needs updating.
+    """
+    log.info("")
+    log.info("Step 10: Creating unversioned symlinks...")
+
+    repo_path = Path(__file__).resolve().parent
+    version_pattern = re.compile(r"^(.+)-v[0-9]+[.][0-9]+[.][0-9]+[.]py$")
+
+    scripts = [
+        f for f in repo_path.iterdir()
+        if f.is_file() and version_pattern.match(f.name)
+    ]
+
+    if not scripts:
+        log.info("  No versioned scripts found.")
+        return
+
+    for script in sorted(scripts):
+        match = version_pattern.match(script.name)
+        if not match:
+            continue
+        base_name = match.group(1)
+        symlink_path = repo_path / base_name
+
+        if symlink_path.is_symlink():
+            if symlink_path.resolve() == script.resolve():
+                log.info(f"  {base_name} -> {script.name} -- already correct, skipping")
+                continue
+            symlink_path.unlink()
+        elif symlink_path.exists():
+            symlink_path.unlink()
+
+        symlink_path.symlink_to(script.name)
+        log.info(f"  {base_name} -> {script.name} -- created")
+
+    log.info("  Symlinks created -- OK")
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -969,6 +1018,7 @@ def main():
     make_scripts_executable()
     create_startup_script()
     create_settings(radio_profile)
+    create_symlinks()
 
     log.info("")
     log.info("=" * 70)
