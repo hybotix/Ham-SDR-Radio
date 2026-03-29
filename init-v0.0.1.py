@@ -661,7 +661,23 @@ def build_sdrpp():
 
     log.info("  Running cmake...")
     run(
-        ["cmake", "..", "-DOPT_BUILD_AUDIO_SINK=ON", "-DOPT_BUILD_SOAPY_SOURCE=OFF"],
+        ["cmake", "..",
+         "-DOPT_BUILD_AUDIO_SINK=ON",
+         "-DOPT_BUILD_SOAPY_SOURCE=OFF",
+         "-DOPT_BUILD_AIRSPY_SOURCE=OFF",
+         "-DOPT_BUILD_AIRSPYHF_SOURCE=OFF",
+         "-DOPT_BUILD_BLADERF_SOURCE=OFF",
+         "-DOPT_BUILD_FILE_SOURCE=ON",
+         "-DOPT_BUILD_HACKRF_SOURCE=OFF",
+         "-DOPT_BUILD_LIMESDR_SOURCE=OFF",
+         "-DOPT_BUILD_MIRISDR_SOURCE=OFF",
+         "-DOPT_BUILD_PLUTOSDR_SOURCE=OFF",
+         "-DOPT_BUILD_RFSPACE_SOURCE=OFF",
+         "-DOPT_BUILD_RTL_SDR_SOURCE=ON",
+         "-DOPT_BUILD_RTL_TCP_SOURCE=ON",
+         "-DOPT_BUILD_SPYSERVER_SOURCE=OFF",
+         "-DOPT_BUILD_USRP_SOURCE=OFF",
+         ],
         cwd=build_output,
         desc="cmake SDR++",
     )
