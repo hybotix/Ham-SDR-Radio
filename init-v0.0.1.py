@@ -93,6 +93,26 @@ SETTINGS_PATH    = Path("config") / "settings-v0.0.1.py"
 
 REQUIRED_PYTHON  = (3, 14, 3)
 
+# ---------------------------------------------------------------------------
+# Supported Radio Profiles
+# Each entry defines the default CAT parameters for that radio.
+# Add new radios here as support is developed.
+# ---------------------------------------------------------------------------
+
+RADIO_PROFILES = {
+    "1": {
+        "name":        "Xiegu G90",
+        "model":       "g90",
+        "protocol":    "CI-V",
+        "baud":        19200,
+        "port_hint":   "/dev/ttyUSB0",
+        "notes":       "DO NOT use hamlib — hard-transmit bug. Use direct CI-V via pyserial.",
+    },
+    # Future radios go here:
+    # "2": { "name": "Icom IC-7300", "model": "ic7300", ... },
+    # "3": { "name": "Yaesu FT-891", "model": "ft891",  ... },
+}
+
 # Ham System directory structure
 HAM_DIRS = [
     "core",
@@ -521,8 +541,10 @@ AUDIO_INTERFACE = "de19"
 # G90 CAT Control
 # ---------------------------------------------------------------------------
 
-RIG_PORT          = "/dev/ttyUSB0"  # Serial port for G90 CAT control
-RIG_BAUD          = 19200           # G90 baud rate -- do not change
+# Radio: {radio_name}
+RIG_MODEL         = "{radio_model}"
+RIG_PORT          = "{rig_port}"    # Serial port for CAT control
+RIG_BAUD          = {rig_baud}      # CAT baud rate for selected radio
 RIG_POLL_INTERVAL = 0.25            # CAT polling interval in seconds
 
 # ---------------------------------------------------------------------------
@@ -578,21 +600,76 @@ LOG_LEVEL = "INFO"                  # DEBUG / INFO / WARNING / ERROR
 """
 
 
-def create_settings():
+def create_settings(radio_profile: dict):
     log.info("")
     log.info("Step 8: Checking settings file...")
     if SETTINGS_PATH.exists():
         log.info(f"  {SETTINGS_PATH} already exists — skipping")
+        log.info(f"  NOTE: If you changed radio selection, update RIG_MODEL, RIG_BAUD,")
+        log.info(f"        and RIG_PORT in {SETTINGS_PATH} manually.")
         return
     log.info(f"  Creating default settings file: {SETTINGS_PATH}")
-    SETTINGS_PATH.write_text(DEFAULT_SETTINGS)
-    log.info(f"  {SETTINGS_PATH} created — OK")
+    settings_content = DEFAULT_SETTINGS.format(
+        radio_name  = radio_profile["name"],
+        radio_model = radio_profile["model"],
+        rig_baud    = radio_profile["baud"],
+        rig_port    = radio_profile["port_hint"],
+    )
+    SETTINGS_PATH.write_text(settings_content)
+    log.info(f"  {SETTINGS_PATH} created for {radio_profile['name']} — OK")
     log.info("  IMPORTANT: Review and edit settings before running Ham System.")
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
+def select_radio() -> dict:
+    """
+    Present the user with a menu of supported radios and return the
+    selected radio profile dict. Aborts if no valid selection is made.
+    Currently only the Xiegu G90 is supported — additional radios will
+    be added as development progresses.
+    """
+    log.info("")
+    log.info("Radio Selection:")
+    log.info("  The following radios are currently supported:")
+    log.info("")
+    for key, profile in RADIO_PROFILES.items():
+        log.info(f"  [{key}] {profile['name']}")
+        if profile.get("notes"):
+            log.info(f"       Note: {profile['notes']}")
+    log.info("")
+
+    if len(RADIO_PROFILES) == 1:
+        # Only one radio available — auto-select with confirmation
+        key = next(iter(RADIO_PROFILES))
+        profile = RADIO_PROFILES[key]
+        log.info(f"  Only one radio currently supported: {profile['name']}")
+        try:
+            answer = input(f"  Use {profile['name']}? [Y/n]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            log.info("")
+            abort("Radio selection cancelled.")
+        if answer in ("", "y"):
+            log.info(f"  Selected: {profile['name']} — OK")
+            return profile
+        else:
+            abort("No radio selected. Cannot continue without a supported radio.")
+    else:
+        # Multiple radios — present full menu
+        while True:
+            try:
+                answer = input("  Enter selection: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                log.info("")
+                abort("Radio selection cancelled.")
+            if answer in RADIO_PROFILES:
+                profile = RADIO_PROFILES[answer]
+                log.info(f"  Selected: {profile['name']} — OK")
+                return profile
+            log.warning(f"  Invalid selection '{answer}' — please choose from the list above.")
+
 
 # Line appended to shell RC file if the user accepts
 PATH_EXPORT_LINE = "export PATH=/usr/local/bin:$PATH"
@@ -702,6 +779,7 @@ def main():
     banner()
 
     check_path()
+    radio_profile = select_radio()
     build_openssl()
     build_python()
     scaffold_directories()
@@ -709,7 +787,7 @@ def main():
     build_flrig()
     install_python_deps()
     verify_g90_port()
-    create_settings()
+    create_settings(radio_profile)
 
     log.info("")
     log.info("=" * 70)
