@@ -108,14 +108,20 @@ FLRIG_REPO       = "https://git.code.sf.net/p/fldigi/flrig"
 FLRIG_DIR        = Path("build") / "flrig"
 FLRIG_BIN        = LOCAL_BIN / "flrig"
 
-BUILD_DIR        = Path("build")
+# Build directory for source downloads -- override with HAM_BUILD_DIR
+# Default: ./build (relative to repo)
+BUILD_DIR        = Path(os.environ.get("HAM_BUILD_DIR", "build"))
 SETTINGS_PATH    = Path("config") / "settings-v0.0.1.json"
 STARTUP_SCRIPT   = Path("start-v0.0.1.py")
 
 REQUIRED_PYTHON  = (3, 14, 3)
 
 REPO_NAME        = "Ham-SDR-Radio"
-VIRTUAL_DIR      = Path.home() / "Virtual"
+
+# Venv location -- override with HAM_VENV_DIR environment variable
+# Default: ~/Virtual/Ham-SDR-Radio
+# Example: export HAM_VENV_DIR=/opt/ham-system/venv
+VIRTUAL_DIR      = Path(os.environ.get("HAM_VENV_DIR", str(Path.home() / "Virtual")))
 VENV_PATH        = VIRTUAL_DIR / REPO_NAME
 VENV_PYTHON      = VENV_PATH / "bin" / "python3"
 VENV_PIP         = VENV_PATH / "bin" / "pip"
@@ -458,18 +464,6 @@ def validate_license(callsign: str) -> dict:
     return license_data
 
 
-
-
-def _ensure_repo_dirs():
-    """
-    Ensure the standard repo directory structure exists.
-    Creates ~/Repos/GitHub/hybotix if not present.
-    """
-    repo_base = Path.home() / "Repos" / "GitHub" / "hybotix"
-    if not repo_base.exists():
-        log.info(f"  Creating repo directory: {repo_base}")
-        repo_base.mkdir(parents=True, exist_ok=True)
-        log.info(f"  {repo_base} created -- OK")
 
 
 
@@ -1516,7 +1510,6 @@ def check_path():
 def main():
     banner()
 
-    _ensure_repo_dirs()
     validate_operator_license()
 
     check_path()

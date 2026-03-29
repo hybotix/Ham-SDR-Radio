@@ -70,15 +70,22 @@ The initialization script handles everything else automatically.
 
 ### Clone and run
 
+Clone the repo anywhere you like:
+
 ```
-mkdir -p ~/Repos/GitHub/hybotix
-cd ~/Repos/GitHub/hybotix
 git clone https://github.com/hybotix/Ham-SDR-Radio.git
 cd Ham-SDR-Radio
 python3 init-v0.0.1.py
 ```
 
-The `~/Repos/GitHub/hybotix` directory will be created automatically if it does not exist.
+No specific directory structure is required or enforced.
+
+### Optional environment overrides
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `HAM_VENV_DIR` | `~/Virtual` | Parent directory for the Python virtual environment |
+| `HAM_BUILD_DIR` | `./build` | Directory for building OpenSSL, Python, SDR++, FlRig sources |
 
 Run the initialization script:
 
