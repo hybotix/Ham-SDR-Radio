@@ -324,18 +324,56 @@ def build_python():
         log.info(f"  Python source already extracted — skipping extraction")
 
     log.info("  Configuring Python...")
-    run(
+    # Explicitly set CFLAGS, LDFLAGS, and PKG_CONFIG_PATH so that
+    # Python's configure finds our /usr/local OpenSSL 4.1 build and
+    # not any older system OpenSSL. --with-openssl alone is not enough
+    # on all systems — the linker and pkg-config must also be directed.
+    openssl_inc = OPENSSL_PREFIX / "include"
+    openssl_lib = OPENSSL_PREFIX / "lib"
+    openssl_lib64 = OPENSSL_PREFIX / "lib64"
+    openssl_pkgconfig = openssl_lib / "pkgconfig"
+    openssl_pkgconfig64 = openssl_lib64 / "pkgconfig"
+
+    # Use lib64 if lib doesn't exist (some builds install there)
+    lib_path = str(openssl_lib64) if openssl_lib64.exists() and not openssl_lib.exists()                else str(openssl_lib)
+    pkg_path = str(openssl_pkgconfig64) if openssl_pkgconfig64.exists() and not openssl_pkgconfig.exists()                else str(openssl_pkgconfig)
+
+    env = os.environ.copy()
+    env["CFLAGS"]         = f"-I{openssl_inc}"
+    env["LDFLAGS"]        = f"-L{lib_path} -Wl,-rpath,{lib_path}"
+    env["PKG_CONFIG_PATH"] = pkg_path
+
+    result = subprocess.run(
         ["./configure",
          f"--prefix={PYTHON_PREFIX}",
          "--enable-optimizations",
          "--with-lto",
-         f"--with-openssl={OPENSSL_PREFIX}"],
+         f"--with-openssl={OPENSSL_PREFIX}",
+         f"--with-openssl-rpath=auto"],
         cwd=PYTHON_DIR,
-        desc=f"configure Python {PYTHON_VERSION}",
+        env=env,
+        capture_output=True,
+        text=True,
     )
+    if result.returncode != 0:
+        log.error(f"  stdout: {result.stdout.strip()}")
+        log.error(f"  stderr: {result.stderr.strip()}")
+        abort(f"Python configure failed — check OpenSSL 4.1 build at {OPENSSL_PREFIX}")
+    log.info("  Python configure — OK")
 
     log.info(f"  Building Python with {cpu_jobs()} jobs (this will take a while)...")
-    run(["make", f"-j{cpu_jobs()}"], cwd=PYTHON_DIR, desc=f"make Python {PYTHON_VERSION}")
+    result = subprocess.run(
+        ["make", f"-j{cpu_jobs()}"],
+        cwd=PYTHON_DIR,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        log.error(f"  stdout: {result.stdout.strip()}")
+        log.error(f"  stderr: {result.stderr.strip()}")
+        abort("Python build failed — see output above.")
+    log.info("  Python build — OK")
 
     log.info("  Installing Python...")
     run(["sudo", "make", "altinstall"], cwd=PYTHON_DIR, desc="make altinstall Python")
