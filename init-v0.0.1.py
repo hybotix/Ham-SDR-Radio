@@ -579,6 +579,46 @@ def _warn_if_wrong_python():
 # Step 3 — Scaffold directory structure
 # ---------------------------------------------------------------------------
 
+
+# ---------------------------------------------------------------------------
+# Step 2.5 - Create Python virtual environment
+# ---------------------------------------------------------------------------
+
+def create_venv():
+    log.info("")
+    log.info("Step 2.5: Checking Python virtual environment...")
+
+    if not VIRTUAL_DIR.exists():
+        log.info(f"  Creating {VIRTUAL_DIR}...")
+        VIRTUAL_DIR.mkdir(parents=True, exist_ok=True)
+        log.info(f"  {VIRTUAL_DIR} created -- OK")
+    else:
+        log.info(f"  {VIRTUAL_DIR} exists -- OK")
+
+    if VENV_PYTHON.exists():
+        result = subprocess.run(
+            [str(VENV_PYTHON), "--version"],
+            capture_output=True, text=True,
+        )
+        installed = result.stdout.strip() + result.stderr.strip()
+        if PYTHON_VERSION in installed:
+            log.info(f"  Venv already exists at {VENV_PATH} -- skipping")
+            return
+        log.warning(f"  Venv exists but is wrong Python version -- recreating...")
+        import shutil as _shutil
+        _shutil.rmtree(VENV_PATH)
+
+    log.info(f"  Creating venv: {VENV_PATH}")
+    run(
+        [str(PYTHON_BIN), "-m", "venv", str(VENV_PATH)],
+        desc=f"python3.14 -m venv {VENV_PATH}",
+    )
+    if not VENV_PYTHON.exists():
+        abort(f"Venv creation completed but {VENV_PYTHON} not found.")
+    log.info(f"  Venv created at {VENV_PATH} -- OK")
+    log.info(f"  Activate with: source {VENV_ACTIVATE}")
+
+
 def scaffold_directories():
     log.info("")
     log.info("Step 3: Scaffolding directory structure...")
