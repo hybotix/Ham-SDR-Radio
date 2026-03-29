@@ -27,7 +27,25 @@ Designed by a wheelchair user, for wheelchair users.
 
 ---
 
-## 2. Problem Statement
+## 2. Designer's Perspective
+
+This product is designed by a power wheelchair user who rides mass transit daily.
+Every design decision comes from real lived experience — not assumptions, not
+focus groups, not guesswork.
+
+The designer knows firsthand:
+- How mirrors obstruct doorways and bus ramps
+- How mirrors catch on transit vehicle doors and fixtures
+- How critical rearward awareness is when backing onto a bus lift
+- How useless fixed mirrors are for dynamic environments like crowded platforms
+- What it feels like to navigate a subway platform without knowing what is behind you
+
+This is what makes The Accessibility Files credible — *I investigate the
+inaccessible* because I live the inaccessible every single day.
+
+---
+
+## 3. Problem Statement
 
 Power wheelchair users have severely limited rearward visibility. Turning to
 look behind is difficult or impossible for many users. This creates real safety
@@ -37,15 +55,27 @@ hazards in:
 - Navigating crowded environments
 - Detecting approaching people or vehicles from behind
 - Parking and positioning
+- **Boarding and exiting mass transit vehicles** — bus lifts, subway platforms,
+  light rail gaps, paratransit vehicles
 
-Existing solutions (mirrors, phone mounts) are inadequate — mirrors require
-the user to look away from their path, and phones require manual operation.
+### Why mirrors fail
 
-This system provides always-on, hands-free rearward awareness.
+Mirrors are the current standard solution — and they are inadequate:
+
+- Must be physically moved out of the way for doorways and bus ramps
+- Protrude from the chair and **catch on transit vehicle doors and fixtures**
+- Fixed angle — cannot pan to look where you need
+- Useless in low light
+- Obstructed by passengers in crowded environments
+- Create additional width that complicates navigation in tight spaces
+
+**This system has zero impact on boarding and exiting mass transit vehicles.**
+When not in use, the camera unit sits flush against the headrest. No protrusion,
+no obstruction, nothing to catch on doors or ramps.
 
 ---
 
-## 3. Design Philosophy
+## 4. Design Philosophy
 
 - **Wireless** — no cables between camera and display units
 - **Battery operated** — both units independent, no wiring into the wheelchair
@@ -56,9 +86,9 @@ This system provides always-on, hands-free rearward awareness.
 
 ---
 
-## 4. Hardware Architecture
+## 5. Hardware Architecture
 
-### 4.1 Camera Unit (Headrest Mounted)
+### 5.1 Camera Unit (Headrest Mounted)
 
 | Component | Selection | Notes |
 |-----------|-----------|-------|
@@ -76,7 +106,7 @@ This system provides always-on, hands-free rearward awareness.
 - Auto-start on power-up
 - Broadcast as WiFi hotspot OR connect to existing network
 
-### 4.2 Display Unit (User Mounted)
+### 5.2 Display Unit (User Mounted)
 
 | Component | Selection | Notes |
 |-----------|-----------|-------|
@@ -93,7 +123,7 @@ This system provides always-on, hands-free rearward awareness.
 - Show battery status for both units
 - Auto-connect on power-up
 
-### 4.3 Browser-Based Access (Any Device)
+### 5.3 Browser-Based Access (Any Device)
 
 The camera unit serves a responsive web interface directly from the Pi Zero 2W.
 **No app installation required.** Any device with a browser works:
@@ -116,7 +146,7 @@ This makes the system maximally accessible — users can choose the dedicated
 ESP32-S3 display unit for a self-contained experience, or use any phone or
 tablet they already own.
 
-### 4.4 Communication
+### 5.4 Communication
 
 - **Protocol:** WiFi (2.4GHz)
 - **Mode:** Camera unit acts as WiFi access point, display unit connects to it
@@ -126,9 +156,9 @@ tablet they already own.
 
 ---
 
-## 5. Software Architecture
+## 6. Software Architecture
 
-### 5.1 Camera Unit Software (Raspberry Pi Zero 2W)
+### 6.1 Camera Unit Software (Raspberry Pi Zero 2W)
 
 - **OS:** Raspberry Pi OS Lite (minimal, fast boot)
 - **Language:** Python (consistent with Hybrid RobotiX standards)
@@ -161,7 +191,7 @@ http://headcam.local        — Connect phone/tablet/laptop to camera WiFi,
 - `gpiozero` — servo control
 - All installed into a virtualenv on the Pi Zero 2W
 
-### 5.2 Display Unit Software (ESP32-S3)
+### 6.2 Display Unit Software (ESP32-S3)
 
 - **Framework:** Arduino or ESP-IDF
 - **Video:** MJPEG decoder → display framebuffer
@@ -170,9 +200,9 @@ http://headcam.local        — Connect phone/tablet/laptop to camera WiFi,
 
 ---
 
-## 6. Physical Design
+## 7. Physical Design
 
-### 6.0 Thermal Management
+### 7.0 Thermal Management
 
 The Pi Zero 2W runs warm under sustained camera streaming. Thermal management
 is a first-class design concern, not an afterthought.
@@ -196,7 +226,7 @@ is a first-class design concern, not an afterthought.
 - Default enclosure color: light grey or white
 - User advised to avoid prolonged direct sunlight exposure
 
-### 6.1 Camera Unit Enclosure
+### 7.1 Camera Unit Enclosure
 
 - Weatherproof (splash resistant minimum)
 - Clean headrest post clamp — no tools required to install/remove
@@ -206,7 +236,7 @@ is a first-class design concern, not an afterthought.
 - Pan range: ±90° horizontal
 - Tilt range: -30° to +45° vertical
 
-### 6.2 Display Unit Enclosure
+### 7.2 Display Unit Enclosure
 
 - RAM mount ball adapter (industry standard, compatible with most mounts)
 - Portrait and landscape orientation supported
@@ -216,7 +246,7 @@ is a first-class design concern, not an afterthought.
 
 ---
 
-## 7. Target Market
+## 8. Target Market
 
 - Power wheelchair users
 - Manual wheelchair users with limited head/neck mobility
@@ -228,7 +258,7 @@ is a first-class design concern, not an afterthought.
 
 ---
 
-## 8. Target Price Point
+## 9. Target Price Point
 
 | Component | Estimated Cost |
 |-----------|---------------|
@@ -246,7 +276,7 @@ is a first-class design concern, not an afterthought.
 
 ---
 
-## 9. Development Phases
+## 10. Development Phases
 
 ### Phase 1 — Proof of Concept
 - [ ] Pi Zero 2W streaming MJPEG to browser
@@ -280,7 +310,7 @@ is a first-class design concern, not an afterthought.
 
 ---
 
-## 10. Future Enhancements
+## 11. Future Enhancements
 
 - Object detection / proximity warning (BrainChip Akida or Hailo)
 - License plate recognition
