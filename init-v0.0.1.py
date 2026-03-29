@@ -328,6 +328,29 @@ def install_apt_deps():
     log.info(f"  All system build dependencies installed — OK")
 
 
+
+def _openssl_target() -> str:
+    """
+    Return the correct OpenSSL Configure target for the current architecture.
+    Supports x86_64 (Linux/Ubuntu) and aarch64 (Raspberry Pi / ARM64).
+    """
+    import platform
+    machine = platform.machine()
+    targets = {
+        "x86_64":  "linux-x86_64",
+        "aarch64": "linux-aarch64",
+        "armv7l":  "linux-armv4",
+    }
+    target = targets.get(machine)
+    if not target:
+        abort(
+            f"Unsupported architecture '{machine}' for OpenSSL configure. "
+            f"Add a target mapping to _openssl_target() and re-run."
+        )
+    log.info(f"  Detected architecture: {machine} -> OpenSSL target: {target}")
+    return target
+
+
 # ---------------------------------------------------------------------------
 # Step 1 — Build OpenSSL 4.1 from source
 # ---------------------------------------------------------------------------
@@ -370,7 +393,7 @@ def build_openssl():
         ["./Configure",
          f"--prefix={OPENSSL_PREFIX}",
          f"--openssldir={OPENSSL_PREFIX}/ssl",
-         "linux-aarch64"],
+         _openssl_target()],
         cwd=OPENSSL_DIR,
         desc="Configure OpenSSL",
     )
