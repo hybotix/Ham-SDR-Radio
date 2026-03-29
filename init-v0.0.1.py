@@ -594,23 +594,108 @@ def create_settings():
 # Main
 # ---------------------------------------------------------------------------
 
+# Line appended to shell RC file if the user accepts
+PATH_EXPORT_LINE = "export PATH=/usr/local/bin:$PATH"
+FISH_PATH_LINE   = "fish_add_path /usr/local/bin"
+
+# Known shell RC files in detection order
+SHELL_RC_MAP = {
+    "bash": Path.home() / ".bashrc",
+    "zsh":  Path.home() / ".zshrc",
+    "fish": Path.home() / ".config" / "fish" / "config.fish",
+    "ksh":  Path.home() / ".kshrc",
+    "dash": Path.home() / ".profile",
+}
+
+
+def detect_shell_rc():
+    """
+    Detect the user's current shell from the SHELL environment variable.
+    Returns (shell_name, rc_path) or (None, None) if not detected.
+    """
+    shell_bin = os.environ.get("SHELL", "")
+    shell_name = Path(shell_bin).name if shell_bin else None
+    rc_path = SHELL_RC_MAP.get(shell_name)
+    return shell_name, rc_path
+
+
+def offer_rc_edit(rc_path, shell_name):
+    """
+    Offer to add the PATH export line to the user's shell RC file.
+    Returns True if the line was added or was already present.
+    Returns False if the user declined.
+    """
+    export_line = FISH_PATH_LINE if shell_name == "fish" else PATH_EXPORT_LINE
+
+    if rc_path.exists():
+        existing = rc_path.read_text()
+        if "/usr/local/bin" in existing:
+            log.info(f"  /usr/local/bin already referenced in {rc_path} — no edit needed")
+            return True
+
+    log.info(f"  Detected shell : {shell_name}")
+    log.info(f"  RC file        : {rc_path}")
+    log.info(f"  Line to add    : {export_line}")
+    log.info("")
+
+    try:
+        answer = input(f"  Add this line to {rc_path}? [y/N]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        log.info("")
+        return False
+
+    if answer == "y":
+        with rc_path.open("a") as f:
+            f.write(f"\n# Added by Ham System init-v0.0.1.py\n{export_line}\n")
+        log.info(f"  Written to {rc_path} — OK")
+        log.info(f"  Reload with: source {rc_path}")
+        return True
+    else:
+        log.info("  Edit declined.")
+        return False
+
+
 def check_path():
-    """Abort if /usr/local/bin is not the first entry in PATH.
-    This is a REQUIRED system configuration — see module docstring.
+    """
+    Verify /usr/local/bin is first in PATH.
+    If not, detect the user's shell and offer to edit the RC file automatically.
+    Aborts with clear instructions to reload and re-run.
     """
     log.info("")
     log.info("Pre-flight: Checking PATH configuration...")
     path_entries = os.environ.get("PATH", "").split(":")
-    if not path_entries or path_entries[0] != "/usr/local/bin":
-        first = path_entries[0] if path_entries else "(empty)"
-        abort(
-            "/usr/local/bin MUST be the first entry in PATH before running this script.\n"
-            f"  Current first entry: {first}\n"
-            "  Add the following to your shell RC file (~/.bashrc, ~/.zshrc, etc.)\n"
-            "  and reload it (source ~/.bashrc) before re-running:\n\n"
-            "      export PATH=/usr/local/bin:$PATH"
+
+    if path_entries and path_entries[0] == "/usr/local/bin":
+        log.info("  /usr/local/bin is first in PATH — OK")
+        return
+
+    first = path_entries[0] if path_entries else "(empty)"
+    log.warning(f"  /usr/local/bin is NOT first in PATH (current first: {first})")
+    log.warning("  This is a required configuration for the Ham System.")
+    log.info("")
+
+    shell_name, rc_path = detect_shell_rc()
+
+    if shell_name and rc_path:
+        edited = offer_rc_edit(rc_path, shell_name)
+        if edited:
+            abort(
+                "PATH updated. Reload your shell RC file and re-run this script:\n"
+                f"      source {rc_path}\n"
+                f"      python3 init-v0.0.1.py"
+            )
+    else:
+        log.warning(
+            f"  Could not detect shell RC file "
+            f"(SHELL={os.environ.get('SHELL', 'not set')})"
         )
-    log.info("  /usr/local/bin is first in PATH — OK")
+        log.warning("  Manually add the following to your shell RC file:")
+        log.warning(f"      {PATH_EXPORT_LINE}")
+
+    abort(
+        "/usr/local/bin must be first in PATH before running this script.\n"
+        "  Edit your shell RC file, reload it, and re-run."
+    )
 
 
 def main():
