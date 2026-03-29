@@ -19,6 +19,14 @@ Safe to re-run — all steps are idempotent.
 Aborts immediately with a clear error if any required build fails.
 NO bash or shell scripts. Python only.
 
+REQUIRED: Before running this script, /usr/local/bin MUST be first in PATH.
+          Add the following line to your shell RC file (~/.bashrc, ~/.zshrc,
+          or equivalent) and reload it before proceeding:
+
+              export PATH=/usr/local/bin:$PATH
+
+          This script will abort if /usr/local/bin is not first in PATH.
+
 NOTE: This script may be initially invoked with the system Python to bootstrap
       the build. Once Python 3.14.3 is built and installed, re-invoke with it.
 """
@@ -586,9 +594,29 @@ def create_settings():
 # Main
 # ---------------------------------------------------------------------------
 
+def check_path():
+    """Abort if /usr/local/bin is not the first entry in PATH.
+    This is a REQUIRED system configuration — see module docstring.
+    """
+    log.info("")
+    log.info("Pre-flight: Checking PATH configuration...")
+    path_entries = os.environ.get("PATH", "").split(":")
+    if not path_entries or path_entries[0] != "/usr/local/bin":
+        first = path_entries[0] if path_entries else "(empty)"
+        abort(
+            "/usr/local/bin MUST be the first entry in PATH before running this script.\n"
+            f"  Current first entry: {first}\n"
+            "  Add the following to your shell RC file (~/.bashrc, ~/.zshrc, etc.)\n"
+            "  and reload it (source ~/.bashrc) before re-running:\n\n"
+            "      export PATH=/usr/local/bin:$PATH"
+        )
+    log.info("  /usr/local/bin is first in PATH — OK")
+
+
 def main():
     banner()
 
+    check_path()
     build_openssl()
     build_python()
     scaffold_directories()
