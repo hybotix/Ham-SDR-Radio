@@ -84,13 +84,15 @@ FCC_CLASS_MAP = {
 PRIVILEGE_PROFILES = {
     "FCC": {
         "Technician": {
-            "hf_phone":    False,
+            "hf_phone":    True,
             "hf_cw":       True,
             "hf_digital":  True,
             "vhf_uhf":     True,
             "max_power_w": 200,
-            "hf_bands":    ["10m"],
-            "notes":       "HF limited to 10M CW/digital only. No HF phone privileges.",
+            "hf_bands":    ["80m","40m","15m","10m"],
+            "notes":       "HF: Phone/digital on 10M (28.300-28.500 MHz). "
+                           "CW on 80M (3.525-3.600), 40M (7.025-7.125), "
+                           "15M (21.025-21.200), and 10M (28.000-28.500).",
         },
         "General": {
             "hf_phone":    True,
