@@ -18,6 +18,7 @@ This script handles:
   Step 7.5 — Set all Python scripts executable
   Step 8 — Create startup script (start-v0.0.1.py)
   Step 9 — Create default settings file if not present (JSON format)
+  Step 9.5 — Run license advisor to verify callsign
   Step 10 — Create unversioned symlinks to current scripts
 
 Package manager: apt/dpkg required. Debian-based systems ONLY.
@@ -223,6 +224,7 @@ PYTHON_DEPS = [
     "pyaudio",
     "paho-mqtt",
     "aprslib",
+    "requests",          # HTTP for license advisor API queries
 ]
 
 # Radio serial port candidates (checked in order)
@@ -1004,6 +1006,59 @@ def create_settings(radio_profile: dict):
 
 
 
+
+# ---------------------------------------------------------------------------
+# Step 9.5 - Run license advisor
+# ---------------------------------------------------------------------------
+
+def run_license_advisor():
+    """
+    Run the license advisor to verify the operator callsign and cache
+    license data. Non-fatal if it fails -- license verification is
+    optional and the system works without it.
+    """
+    log.info("")
+    log.info("Step 9.5: Running license advisor...")
+
+    advisor = Path("license_advisor-v0.0.1.py")
+    if not advisor.exists():
+        log.warning(f"  {advisor} not found -- skipping license verification")
+        return
+
+    # Read callsign from settings
+    if not SETTINGS_PATH.exists():
+        log.warning("  Settings file not found -- skipping license verification")
+        return
+
+    try:
+        settings = json.loads(SETTINGS_PATH.read_text())
+        callsign = settings.get("operator", {}).get("callsign", "")
+    except Exception:
+        callsign = ""
+
+    if not callsign or callsign == "YOUR_CALLSIGN":
+        log.warning("  No callsign set in settings -- skipping license verification")
+        log.warning(f"  Update 'callsign' in {SETTINGS_PATH} and run:")
+        log.warning(f"    python3 {advisor} YOUR_CALLSIGN")
+        return
+
+    log.info(f"  Verifying callsign: {callsign}")
+    result = subprocess.run(
+        [str(VENV_PYTHON), str(advisor), callsign],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode == 0:
+        log.info("  License verification complete -- OK")
+        for line in result.stdout.splitlines():
+            if line.strip():
+                log.info(f"  {line}")
+    else:
+        log.warning("  License verification failed (non-fatal):")
+        log.warning(f"  {result.stderr.strip() or result.stdout.strip()}")
+        log.warning(f"  Run manually: python3 {advisor} {callsign}")
+
 # ---------------------------------------------------------------------------
 # Step 10 - Create unversioned symlinks to current scripts
 # ---------------------------------------------------------------------------
@@ -1240,6 +1295,7 @@ def main():
     make_scripts_executable()
     create_startup_script()
     create_settings(radio_profile)
+    run_license_advisor()
     create_symlinks()
 
     log.info("")
