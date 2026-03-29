@@ -8,7 +8,7 @@ Version: 0.0.1
 This script handles:
   Pre-flight — Verify Debian-based platform (dpkg required)
   Step 0 — Install required system build dependencies via apt
-  Step 1 — Check/build OpenSSL 4.1 from source
+  Step 1 — Check/build OpenSSL 3.4.x from source
   Step 2 — Check/build Python 3.14.3 from source
   Step 3 — Scaffold Ham System directory structure
   Step 4 — Check/build SDR++ from latest source
@@ -78,12 +78,12 @@ log = logging.getLogger("ham_init")
 LOCAL            = Path("/usr/local")
 LOCAL_BIN        = LOCAL / "bin"
 
-OPENSSL_VERSION  = "4.1"
+OPENSSL_VERSION  = "3.4"
 OPENSSL_REPO     = "https://github.com/openssl/openssl.git"
-OPENSSL_TAG      = "openssl-4.1"
+OPENSSL_TAG      = "openssl-3.4.1"
 OPENSSL_DIR      = Path("build") / "openssl"
 OPENSSL_PREFIX   = LOCAL
-OPENSSL_BIN      = LOCAL_BIN / "openssl"
+OPENSSL_BIN      = LOCAL_BIN / "openssl"  # openssl 3.4.x
 
 PYTHON_VERSION   = "3.14.3"
 PYTHON_TARBALL   = f"Python-{PYTHON_VERSION}.tar.xz"
@@ -387,12 +387,12 @@ def _openssl_target() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Step 1 — Build OpenSSL 4.1 from source
+# Step 1 — Build OpenSSL 3.4.x from source
 # ---------------------------------------------------------------------------
 
 def build_openssl():
     log.info("")
-    log.info("Step 1: Checking OpenSSL 4.1...")
+    log.info("Step 1: Checking OpenSSL 3.4.x...")
 
     if OPENSSL_BIN.exists():
         result = subprocess.run([str(OPENSSL_BIN), "version"], capture_output=True, text=True)
@@ -496,7 +496,7 @@ def build_python():
 
     log.info("  Configuring Python...")
     # Explicitly set CFLAGS, LDFLAGS, and PKG_CONFIG_PATH so that
-    # Python's configure finds our /usr/local OpenSSL 4.1 build and
+    # Python's configure finds our /usr/local OpenSSL 3.4.x build and
     # not any older system OpenSSL. --with-openssl alone is not enough
     # on all systems — the linker and pkg-config must also be directed.
     openssl_inc = OPENSSL_PREFIX / "include"
@@ -529,7 +529,7 @@ def build_python():
     if result.returncode != 0:
         log.error(f"  stdout: {result.stdout.strip()}")
         log.error(f"  stderr: {result.stderr.strip()}")
-        abort(f"Python configure failed — check OpenSSL 4.1 build at {OPENSSL_PREFIX}")
+        abort(f"Python configure failed — check OpenSSL 3.4.x build at {OPENSSL_PREFIX}")
     log.info("  Python configure — OK")
 
     log.info(f"  Building Python with {cpu_jobs()} jobs (this will take a while)...")

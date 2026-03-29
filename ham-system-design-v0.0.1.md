@@ -76,7 +76,7 @@ All Python files must include a version number as a suffix in the filename.
 | Host | Raspberry Pi 5 / 8GB RAM ("hammer") |
 | OS | Raspberry Pi OS Trixie (Debian 13), booting from USB |
 | Python | 3.14.3 (built from source if not present) |
-| OpenSSL | 4.1 (built from source) |
+| OpenSSL | 3.4.x (built from source) |
 | Transceiver | See RADIOS list in settings |
 | Antenna | Hamstick mobile (balcony / mobile proven) |
 | Radio Connection | USB serial (device path configured per radio) |
