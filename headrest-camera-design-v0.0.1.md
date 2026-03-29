@@ -93,7 +93,30 @@ This system provides always-on, hands-free rearward awareness.
 - Show battery status for both units
 - Auto-connect on power-up
 
-### 4.3 Communication
+### 4.3 Browser-Based Access (Any Device)
+
+The camera unit serves a responsive web interface directly from the Pi Zero 2W.
+**No app installation required.** Any device with a browser works:
+
+- Smartphone (iOS or Android)
+- Tablet
+- Laptop
+- Any other WiFi-capable device with a browser
+
+Simply connect the device to the camera unit's WiFi network and open a browser.
+The interface provides:
+
+- Full MJPEG video stream
+- Touch/click-to-pan controls (tap where you want the camera to look)
+- Swipe gestures for smooth pan/tilt
+- Works on any screen size — fully responsive design
+- No app store, no installation, no compatibility issues
+
+This makes the system maximally accessible — users can choose the dedicated
+ESP32-S3 display unit for a self-contained experience, or use any phone or
+tablet they already own.
+
+### 4.4 Communication
 
 - **Protocol:** WiFi (2.4GHz)
 - **Mode:** Camera unit acts as WiFi access point, display unit connects to it
@@ -111,7 +134,9 @@ This system provides always-on, hands-free rearward awareness.
 - **Language:** Python (consistent with Hybrid RobotiX standards)
 - **Video:** `picamera2` library → MJPEG stream server
 - **Pan/Tilt:** `gpiozero` or `RPi.GPIO` servo control
-- **Control server:** UDP listener for pan/tilt commands
+- **Control server:** UDP listener for pan/tilt commands from display unit
+- **Web interface:** Lightweight HTTP server serving responsive browser UI
+  (MJPEG stream + touch pan/tilt controls — works on any phone/tablet)
 - **Auto-start:** systemd service
 - **WiFi AP:** hostapd + dnsmasq
 
