@@ -12,11 +12,15 @@ This script handles:
   Step 3 — Scaffold Ham System directory structure
   Step 4 — Check/build SDR++ from latest source
   Step 5 — Check/build FlRig from latest source
-  Step 6 — Install Python dependencies via pip
+  Step 6 — Install Python dependencies into venv
   Step 7 — Verify radio serial port(s)
-  Step 8 — Create default settings file if not present
+  Step 8 — Create startup script (start-v0.0.1.py)
+  Step 9 — Create default settings file if not present
 
 Package manager: apt/dpkg (Debian/Raspberry Pi OS)
+
+Virtual environment: ~/Virtual/Ham-SDR-Radio (created from Python 3.14.3)
+Startup script:      start-v0.0.1.py (sources venv, cds into repo, starts system)
 
 Safe to re-run — all steps are idempotent.
 Aborts immediately with a clear error if any required build fails.
@@ -93,8 +97,16 @@ FLRIG_BIN        = LOCAL_BIN / "flrig"
 
 BUILD_DIR        = Path("build")
 SETTINGS_PATH    = Path("config") / "settings-v0.0.1.py"
+STARTUP_SCRIPT   = Path("start-v0.0.1.py")
 
 REQUIRED_PYTHON  = (3, 14, 3)
+
+REPO_NAME        = "Ham-SDR-Radio"
+VIRTUAL_DIR      = Path.home() / "Virtual"
+VENV_PATH        = VIRTUAL_DIR / REPO_NAME
+VENV_PYTHON      = VENV_PATH / "bin" / "python3"
+VENV_PIP         = VENV_PATH / "bin" / "pip"
+VENV_ACTIVATE    = VENV_PATH / "bin" / "activate"
 
 # ---------------------------------------------------------------------------
 # System Build Dependencies (installed via apt)
@@ -602,23 +614,26 @@ def build_flrig():
 
 
 # ---------------------------------------------------------------------------
-# Step 6 — Install Python dependencies
+# Step 6 — Install Python dependencies into venv
 # ---------------------------------------------------------------------------
 
 def install_python_deps():
     log.info("")
-    log.info("Step 6: Installing Python dependencies...")
+    log.info("Step 6: Installing Python dependencies into venv...")
 
-    # Use the installed Python 3.14.3 binary if available, otherwise current
-    pip_python = str(PYTHON_BIN) if PYTHON_BIN.exists() else sys.executable
+    if not VENV_PIP.exists():
+        abort(f"Venv pip not found at {VENV_PIP}. Ensure Step 2.5 completed successfully.")
+
+    log.info("  Upgrading pip in venv...")
+    run([str(VENV_PIP), "install", "--upgrade", "pip"], desc="pip upgrade")
 
     for package in PYTHON_DEPS:
         log.info(f"  Installing {package}...")
         run(
-            [pip_python, "-m", "pip", "install", "--upgrade", package],
+            [str(VENV_PIP), "install", "--upgrade", package],
             desc=f"pip install {package}",
         )
-    log.info("  All Python dependencies installed — OK")
+    log.info("  All Python dependencies installed into venv — OK")
 
 
 # ---------------------------------------------------------------------------
@@ -647,7 +662,7 @@ def verify_g90_port():
 
 
 # ---------------------------------------------------------------------------
-# Step 8 — Create default settings file
+# Step 9 — Create default settings file
 # ---------------------------------------------------------------------------
 
 DEFAULT_SETTINGS = """\
@@ -749,9 +764,102 @@ LOG_LEVEL = "INFO"                  # DEBUG / INFO / WARNING / ERROR
 """
 
 
+
+# ---------------------------------------------------------------------------
+# Step 8 — Create startup script
+# ---------------------------------------------------------------------------
+
+def create_startup_script():
+    log.info("")
+    log.info("Step 8: Creating startup script...")
+
+    if STARTUP_SCRIPT.exists():
+        log.info(f"  {STARTUP_SCRIPT} already exists -- skipping")
+        return
+
+    repo_path = Path(__file__).resolve().parent
+
+    lines = [
+        '#!/usr/bin/env python3',
+        '"""',
+        'start-v0.0.1.py -- Ham System Startup Script',
+        'Project: Ham System -- N7PKT Integrated Ham Radio Control Platform',
+        'Author:  Dale -- Hybrid RobotiX / The Accessibility Files',
+        'Version: 0.0.1',
+        '',
+        'Activates the Ham-SDR-Radio virtual environment, changes into the',
+        'repo directory, and starts the Ham System.',
+        '',
+        'Usage: python3 start-v0.0.1.py',
+        '"""',
+        '',
+        'VERSION = "0.0.1"',
+        '',
+        'import os',
+        'import sys',
+        'from pathlib import Path',
+        '',
+        f'REPO_PATH     = Path("{repo_path}")',
+        f'VENV_PATH     = Path("{VENV_PATH}")',
+        'VENV_PYTHON   = VENV_PATH / "bin" / "python3"',
+        'VENV_ACTIVATE = VENV_PATH / "bin" / "activate"',
+        '',
+        '',
+        'def main():',
+        '    print("=" * 70)',
+        '    print("  Ham System Startup")',
+        '    print("  N7PKT Integrated Ham Radio Control Platform")',
+        '    print(f"  Version {VERSION}")',
+        '    print("  Hybrid RobotiX / The Accessibility Files")',
+        '    print("  I. WILL. NEVER. GIVE. UP. OR. SURRENDER.")',
+        '    print("=" * 70)',
+        '    print()',
+        '',
+        '    if not VENV_PYTHON.exists():',
+        '        print(f"FATAL: Virtual environment not found at {VENV_PATH}")',
+        '        print( "       Run init-v0.0.1.py to initialize the system first.")',
+        '        sys.exit(1)',
+        '',
+        '    if not REPO_PATH.exists():',
+        '        print(f"FATAL: Repo not found at {REPO_PATH}")',
+        '        sys.exit(1)',
+        '',
+        '    os.chdir(REPO_PATH)',
+        '    print(f"  Working directory : {REPO_PATH}")',
+        '    print(f"  Virtual env       : {VENV_PATH}")',
+        '    print(f"  Python            : {VENV_PYTHON}")',
+        '    print()',
+        '',
+        '    # Re-invoke under venv Python if not already running inside it',
+        '    if Path(sys.executable).resolve() != Path(str(VENV_PYTHON)).resolve():',
+        '        print("  Activating virtual environment...")',
+        '        os.execv(str(VENV_PYTHON), [str(VENV_PYTHON)] + sys.argv)',
+        '',
+        '    # Running inside venv from here',
+        '    print("  Virtual environment active -- OK")',
+        '    print()',
+        '    print("  Ham System starting...")',
+        '    print("  (Main entry point not yet implemented)")',
+        '',
+        '',
+        'if __name__ == "__main__":',
+        '    main()',
+    ]
+
+    STARTUP_SCRIPT.write_text("\n".join(lines) + "\n")
+    STARTUP_SCRIPT.chmod(0o755)
+    log.info(f"  {STARTUP_SCRIPT} created -- OK")
+    log.info("")
+    log.info("  To start the Ham System:")
+    log.info(f"    python3 {STARTUP_SCRIPT}")
+    log.info("")
+    log.info("  To activate the venv manually:")
+    log.info(f"    source {VENV_ACTIVATE}")
+    log.info(f"    cd {repo_path}")
+
 def create_settings(radio_profile: dict):
     log.info("")
-    log.info("Step 8: Checking settings file...")
+    log.info("Step 9: Checking settings file...")
     if SETTINGS_PATH.exists():
         log.info(f"  {SETTINGS_PATH} already exists — skipping")
         log.info(f"  NOTE: If you changed radio selection, update the RADIOS list")
@@ -932,11 +1040,13 @@ def main():
     radio_profile = select_radio()
     build_openssl()
     build_python()
+    create_venv()
     scaffold_directories()
     build_sdrpp()
     build_flrig()
     install_python_deps()
     verify_g90_port()
+    create_startup_script()
     create_settings(radio_profile)
 
     log.info("")
