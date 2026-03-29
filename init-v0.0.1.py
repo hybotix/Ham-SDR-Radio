@@ -167,6 +167,7 @@ APT_PACKAGES = [
     "libfltk1.3-dev",       # FLTK GUI toolkit
     "libxft-dev",           # Font rendering
     "libxinerama-dev",      # Multi-monitor support
+    "libudev-dev",          # udev support (FlRig HID/cmedia)
 
     # Audio
     "libasound2-dev",       # ALSA audio
