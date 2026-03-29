@@ -226,17 +226,46 @@ is a first-class design concern, not an afterthought.
 - Default enclosure color: light grey or white
 - User advised to avoid prolonged direct sunlight exposure
 
-### 7.1 Camera Unit Enclosure
+### 7.1 Mounting System
+
+The camera unit mounts directly to the existing headrest support rods —
+the same rods the headrest itself is mounted on. This is a universal solution
+that works on virtually any power wheelchair without modification.
+
+**Design principles:**
+- No drilling, no permanent modifications to the wheelchair
+- Tool-free installation and removal
+- Adjustable height along the rod
+- Adjustable rotation/angle around the rod
+- Clamp spans both headrest rods for stability
+- Designed in Fusion 360, printed on Bambu H2S
+
+**Clamp design:**
+- Split clamp with captive bolt — one-hand tightening
+- Rod diameter range: accommodates common headrest rod diameters
+  (typically 10mm–16mm — exact range TBD from field measurements on My Chairiet)
+- Rubber liner inside clamp to protect rod finish and prevent slipping
+- Camera unit docks into clamp via quick-release mechanism
+- Camera unit can be removed without removing clamp from rods
+
+**Advantages over mirror-based solutions:**
+- No protruding hardware to catch on doorways or bus ramps
+- Does not interfere with getting on/off mass transit vehicles
+- Does not obstruct when not in use
+- Works in any lighting condition
+- Pan/tilt gives full situational awareness, not a fixed angle
+
+### 7.2 Camera Unit Enclosure
 
 - Weatherproof (splash resistant minimum)
-- Clean headrest post clamp — no tools required to install/remove
-- Camera lens protected when not in use (flip cover)
+- Camera lens protected when not in use (flip cover or retractable shroud)
 - LED indicator for power/streaming status
-- USB-C charging port accessible without removal
+- USB-C charging port accessible without removing unit from mount
+- Light grey or white color to minimize solar heat absorption
 - Pan range: ±90° horizontal
 - Tilt range: -30° to +45° vertical
 
-### 7.2 Display Unit Enclosure
+### 7.3 Display Unit Enclosure
 
 - RAM mount ball adapter (industry standard, compatible with most mounts)
 - Portrait and landscape orientation supported
