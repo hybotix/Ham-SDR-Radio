@@ -6,21 +6,22 @@ Author:  Dale — Hybrid RobotiX / The Accessibility Files
 Version: 0.0.1
 
 This script handles:
-  Pre-flight — Verify Debian-based platform (dpkg required)
-  Pre-flight — Validate operator license (MUST pass before anything else)
-  Step 0 — Install required system build dependencies via apt
-  Step 1 — Check/build OpenSSL 3.4.x from source
-  Step 2 — Check/build Python 3.14.3 from source
-  Step 3 — Scaffold Ham System directory structure
-  Step 4 — Check/build SDR++ from latest source
-  Step 5 — Check/build FlRig from latest source
-  Step 6 — Install Python dependencies into venv
-  Step 7 — Verify radio serial port(s)
-  Step 7.5 — Set all Python scripts executable
-  Step 8 — Create startup script (start-v0.0.1.py)
-  Step 9 — Create default settings file if not present (JSON format)
-  Step 9.5 — Run license advisor to verify callsign
-  Step 10 — Create unversioned symlinks to current scripts
+  Step 1  — Validate operator license (FCC/ISED/Ofcom) — REQUIRED FIRST
+  Pre-flight — Verify Debian-based platform and PATH configuration
+  Step 2  — Install required system build dependencies via apt
+  Step 3  — Check/build OpenSSL 3.4.x from source
+  Step 4  — Check/build Python 3.14.3 from source
+  Step 5  — Create Python virtual environment
+  Step 6  — Scaffold Ham System directory structure
+  Step 7  — Check/build SDR++ from latest source
+  Step 8  — Check/build FlRig from latest source
+  Step 9  — Install Python dependencies into venv
+  Step 10 — Verify radio serial port
+  Step 11 — Set shebang and make all scripts executable
+  Step 12 — Create startup script (start-v0.0.1.py)
+  Step 13 — Create default settings file (JSON)
+  Step 14 — Run license advisor
+  Step 15 — Create unversioned symlinks
 
 Package manager: apt/dpkg required. Debian-based systems ONLY.
                  (Debian, Raspberry Pi OS, Ubuntu, and derivatives)
@@ -417,7 +418,7 @@ def validate_license(callsign: str) -> dict:
     Aborts if callsign is not found or cannot be verified.
     """
     log.info("")
-    log.info("Step 0: Validating operator license...")
+    log.info("Step 1: Validating operator license...")
     log.info(f"  Callsign: {callsign.upper()}")
 
     authority = _detect_authority(callsign)
@@ -557,12 +558,12 @@ def validate_operator_license():
     log.info("  License validation passed — OK")
 
 # ---------------------------------------------------------------------------
-# Step 0 — Install system build dependencies via apt
+# Step 2 — Install system build dependencies via apt
 # ---------------------------------------------------------------------------
 
 def install_apt_deps():
     log.info("")
-    log.info("Step 0: Installing system build dependencies via apt...")
+    log.info("Step 2: Installing system build dependencies via apt...")
 
     # Update package list first
     log.info("  Running apt-get update...")
@@ -627,12 +628,12 @@ def _openssl_target() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Step 1 — Build OpenSSL 3.4.x from source
+# Step 3 — Build OpenSSL 3.4.x from source
 # ---------------------------------------------------------------------------
 
 def build_openssl():
     log.info("")
-    log.info("Step 1: Checking OpenSSL 3.4.x...")
+    log.info("Step 3: Checking OpenSSL 3.4.x...")
 
     if OPENSSL_BIN.exists():
         result = subprocess.run([str(OPENSSL_BIN), "version"], capture_output=True, text=True)
@@ -693,12 +694,12 @@ def build_openssl():
 
 
 # ---------------------------------------------------------------------------
-# Step 2 — Build Python 3.14.3 from source
+# Step 4 — Build Python 3.14.3 from source
 # ---------------------------------------------------------------------------
 
 def build_python():
     log.info("")
-    log.info("Step 2: Checking Python 3.14.3...")
+    log.info("Step 4: Checking Python 3.14.3...")
 
     # Check if target Python binary already exists
     if PYTHON_BIN.exists():
@@ -817,12 +818,12 @@ def _warn_if_wrong_python():
 
 
 # ---------------------------------------------------------------------------
-# Step 2.5 - Create Python virtual environment
+# Step 5 — Create Python virtual environment
 # ---------------------------------------------------------------------------
 
 def create_venv():
     log.info("")
-    log.info("Step 2.5: Checking Python virtual environment...")
+    log.info("Step 5: Checking Python virtual environment...")
 
     if not VIRTUAL_DIR.exists():
         log.info(f"  Creating {VIRTUAL_DIR}...")
@@ -857,7 +858,7 @@ def create_venv():
 
 def scaffold_directories():
     log.info("")
-    log.info("Step 3: Scaffolding directory structure...")
+    log.info("Step 6: Scaffolding directory structure...")
     for d in HAM_DIRS:
         path = Path(d)
         if path.exists():
@@ -868,12 +869,12 @@ def scaffold_directories():
 
 
 # ---------------------------------------------------------------------------
-# Step 4 — Build SDR++ from latest source
+# Step 7 — Build SDR++ from latest source
 # ---------------------------------------------------------------------------
 
 def build_sdrpp():
     log.info("")
-    log.info("Step 4: Checking SDR++...")
+    log.info("Step 7: Checking SDR++...")
 
     if in_local("sdrpp"):
         log.info("  sdrpp found in /usr/local — skipping build")
@@ -933,12 +934,12 @@ def build_sdrpp():
 
 
 # ---------------------------------------------------------------------------
-# Step 5 — Build FlRig from latest source
+# Step 8 — Build FlRig from latest source
 # ---------------------------------------------------------------------------
 
 def build_flrig():
     log.info("")
-    log.info("Step 5: Checking FlRig...")
+    log.info("Step 8: Checking FlRig...")
 
     if in_local("flrig"):
         log.info("  flrig found in /usr/local — skipping build")
@@ -974,15 +975,15 @@ def build_flrig():
 
 
 # ---------------------------------------------------------------------------
-# Step 6 — Install Python dependencies into venv
+# Step 9 — Install Python dependencies into venv
 # ---------------------------------------------------------------------------
 
 def install_python_deps():
     log.info("")
-    log.info("Step 6: Installing Python dependencies into venv...")
+    log.info("Step 9: Installing Python dependencies into venv...")
 
     if not VENV_PIP.exists():
-        abort(f"Venv pip not found at {VENV_PIP}. Ensure Step 2.5 completed successfully.")
+        abort(f"Venv pip not found at {VENV_PIP}. Ensure Step 5 completed successfully.")
 
     log.info("  Upgrading pip in venv...")
     run([str(VENV_PIP), "install", "--upgrade", "pip"], desc="pip upgrade")
@@ -997,12 +998,12 @@ def install_python_deps():
 
 
 # ---------------------------------------------------------------------------
-# Step 7 — Verify radio serial port
+# Step 10 — Verify radio serial port
 # ---------------------------------------------------------------------------
 
 def verify_g90_port():
     log.info("")
-    log.info("Step 7: Verifying radio serial port...")
+    log.info("Step 10: Verifying radio serial port...")
     found = None
     for port in RADIO_PORT_CANDIDATES:
         if Path(port).exists():
@@ -1022,11 +1023,11 @@ def verify_g90_port():
 
 
 # ---------------------------------------------------------------------------
-# Step 9 — Create default settings file
+# Step 13 — Create default settings file
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# Step 7.5 - Set shebang and make all Python scripts executable
+# Step 11 — Set shebang and make all scripts executable
 # ---------------------------------------------------------------------------
 
 SHEBANG = "#!/usr/bin/env python3"
@@ -1039,7 +1040,7 @@ def make_scripts_executable():
     2. Are set executable (chmod +x)
     """
     log.info("")
-    log.info("Step 7.5: Checking shebangs and setting scripts executable...")
+    log.info("Step 11: Checking shebangs and setting scripts executable...")
 
     repo_path = Path(__file__).resolve().parent
     scripts = list(repo_path.rglob("*.py"))
@@ -1065,12 +1066,12 @@ def make_scripts_executable():
 
 
 # ---------------------------------------------------------------------------
-# Step 8 - Create startup script
+# Step 12 — Create startup script
 # ---------------------------------------------------------------------------
 
 def create_startup_script():
     log.info("")
-    log.info("Step 8: Creating startup script...")
+    log.info("Step 12: Creating startup script...")
 
     if STARTUP_SCRIPT.exists():
         log.info(f"  {STARTUP_SCRIPT} already exists -- skipping")
@@ -1204,7 +1205,7 @@ DEFAULT_SETTINGS = {
 
 def create_settings(radio_profile: dict):
     log.info("")
-    log.info("Step 9: Checking settings file...")
+    log.info("Step 13: Checking settings file...")
 
     if SETTINGS_PATH.exists():
         log.info(f"  {SETTINGS_PATH} already exists — skipping")
@@ -1230,7 +1231,7 @@ def create_settings(radio_profile: dict):
 
 
 # ---------------------------------------------------------------------------
-# Step 9.5 - Run license advisor
+# Step 14 — Run license advisor
 # ---------------------------------------------------------------------------
 
 def run_license_advisor():
@@ -1240,7 +1241,7 @@ def run_license_advisor():
     optional and the system works without it.
     """
     log.info("")
-    log.info("Step 9.5: Running license advisor...")
+    log.info("Step 14: Running license advisor...")
 
     advisor = Path("license_advisor-v0.0.1.py")
     if not advisor.exists():
@@ -1282,7 +1283,7 @@ def run_license_advisor():
         log.warning(f"  Run manually: python3 {advisor} {callsign}")
 
 # ---------------------------------------------------------------------------
-# Step 10 - Create unversioned symlinks to current scripts
+# Step 15 — Create unversioned symlinks to current scripts
 # ---------------------------------------------------------------------------
 
 def create_symlinks():
@@ -1293,7 +1294,7 @@ def create_symlinks():
     When a script is versioned up, only the symlink needs updating.
     """
     log.info("")
-    log.info("Step 10: Creating unversioned symlinks...")
+    log.info("Step 15: Creating unversioned symlinks...")
 
     repo_path = Path(__file__).resolve().parent
     version_pattern = re.compile(r"^(.+)-v[0-9]+[.][0-9]+[.][0-9]+[.]py$")
