@@ -343,12 +343,13 @@ CALLOOK_API   = "https://callook.info/{callsign}/json"
 LICENSE_CACHE = Path("config") / "license_cache-v0.0.1.json"
 
 FCC_CLASS_MAP = {
-    "T": "Technician",
-    "G": "General",
-    "A": "Advanced",
-    "E": "Amateur Extra",
-    "N": "Novice",
-    "P": "Technician Plus",
+    "T": "Technician",      "TECHNICIAN":      "Technician",
+    "G": "General",         "GENERAL":         "General",
+    "A": "Advanced",        "ADVANCED":        "Advanced",
+    "E": "Amateur Extra",   "AMATEUR EXTRA":   "Amateur Extra",
+                            "EXTRA":           "Amateur Extra",
+    "N": "Novice",          "NOVICE":          "Novice",
+    "P": "Technician Plus", "TECHNICIAN PLUS": "Technician Plus",
 }
 
 

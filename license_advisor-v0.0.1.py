@@ -63,12 +63,21 @@ PREFIX_MAP = {
 
 # FCC operator class codes -> human readable
 FCC_CLASS_MAP = {
+    # Single letter codes (legacy API format)
     "T": "Technician",
     "G": "General",
     "A": "Advanced",
     "E": "Amateur Extra",
     "N": "Novice",
     "P": "Technician Plus",
+    # Full word format (current callook.info API)
+    "TECHNICIAN":     "Technician",
+    "GENERAL":        "General",
+    "ADVANCED":       "Advanced",
+    "AMATEUR EXTRA":  "Amateur Extra",
+    "EXTRA":          "Amateur Extra",
+    "NOVICE":         "Novice",
+    "TECHNICIAN PLUS":"Technician Plus",
 }
 
 # Privilege profiles -- used for warnings, NEVER for blocking
@@ -252,7 +261,7 @@ def lookup_fcc(callsign: str) -> dict:
         )
 
     raw_class = data.get("current", {}).get("operClass", "")
-    license_class = FCC_CLASS_MAP.get(raw_class, f"Unknown ({raw_class})")
+    license_class = FCC_CLASS_MAP.get(raw_class) or FCC_CLASS_MAP.get(raw_class.upper(), raw_class.title())
 
     return {
         "callsign":      data.get("current", {}).get("callsign", callsign.upper()),
