@@ -132,13 +132,34 @@ tablet they already own.
 
 - **OS:** Raspberry Pi OS Lite (minimal, fast boot)
 - **Language:** Python (consistent with Hybrid RobotiX standards)
-- **Video:** `picamera2` library → MJPEG stream server
-- **Pan/Tilt:** `gpiozero` or `RPi.GPIO` servo control
-- **Control server:** UDP listener for pan/tilt commands from display unit
-- **Web interface:** Lightweight HTTP server serving responsive browser UI
-  (MJPEG stream + touch pan/tilt controls — works on any phone/tablet)
+- **Video:** `picamera2` library → MJPEG stream
+- **Pan/Tilt:** `gpiozero` servo control via GPIO
+- **Web framework:** Flask — serves the browser interface and MJPEG stream
+- **Control:** Flask routes handle pan/tilt commands from any browser
 - **Auto-start:** systemd service
 - **WiFi AP:** hostapd + dnsmasq
+- **mDNS hostname:** `headcam.local` — no IP address needed
+
+**Flask routes:**
+```
+GET  /              — Serve responsive HTML/JS web interface
+GET  /stream        — MJPEG video stream endpoint
+POST /pan_tilt      — Receive pan/tilt commands (JSON)
+GET  /status        — Camera unit status (battery, uptime, etc.)
+```
+
+**Access from any device:**
+```
+http://headcam.local        — Connect phone/tablet/laptop to camera WiFi,
+                              open any browser, navigate to this URL.
+                              No app, no installation, no account required.
+```
+
+**Python dependencies:**
+- `flask` — web framework
+- `picamera2` — camera interface
+- `gpiozero` — servo control
+- All installed into a virtualenv on the Pi Zero 2W
 
 ### 5.2 Display Unit Software (ESP32-S3)
 
