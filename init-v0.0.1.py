@@ -460,6 +460,19 @@ def validate_license(callsign: str) -> dict:
 
 
 
+def _ensure_repo_dirs():
+    """
+    Ensure the standard repo directory structure exists.
+    Creates ~/Repos/GitHub/hybotix if not present.
+    """
+    repo_base = Path.home() / "Repos" / "GitHub" / "hybotix"
+    if not repo_base.exists():
+        log.info(f"  Creating repo directory: {repo_base}")
+        repo_base.mkdir(parents=True, exist_ok=True)
+        log.info(f"  {repo_base} created -- OK")
+
+
+
 def check_platform():
     """
     Abort immediately if not running on a Debian-based system.
@@ -1503,6 +1516,7 @@ def check_path():
 def main():
     banner()
 
+    _ensure_repo_dirs()
     validate_operator_license()
 
     check_path()

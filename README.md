@@ -57,13 +57,28 @@ automatically if it has not been done.
 
 ## Installation
 
-Clone the repository:
+### Prerequisites
+
+On a fresh OS install, ensure `python3` and `git` are available:
 
 ```
+sudo apt-get update
+sudo apt-get install -y python3 git
+```
+
+The initialization script handles everything else automatically.
+
+### Clone and run
+
+```
+mkdir -p ~/Repos/GitHub/hybotix
 cd ~/Repos/GitHub/hybotix
 git clone https://github.com/hybotix/Ham-SDR-Radio.git
 cd Ham-SDR-Radio
+python3 init-v0.0.1.py
 ```
+
+The `~/Repos/GitHub/hybotix` directory will be created automatically if it does not exist.
 
 Run the initialization script:
 
