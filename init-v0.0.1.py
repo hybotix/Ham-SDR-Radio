@@ -177,6 +177,10 @@ APT_PACKAGES = [
     "libasound2-dev",       # ALSA audio
     "portaudio19-dev",      # PortAudio (for pyaudio)
 
+    # SSL certificates
+    "python3-certifi",      # CA certificates for SSL (system level)
+    "ca-certificates",      # System CA certificate bundle
+
     # Serial port
     "python3-serial",       # pyserial bootstrap (system level)
 ]
@@ -526,6 +530,16 @@ def validate_operator_license():
         abort(
             f"license_advisor-v0.0.1.py not found at {advisor}.\n"
             "  Cannot validate license. Ensure the file is present and re-run."
+        )
+
+    # Ensure certifi is available for SSL certificate verification
+    try:
+        import certifi  # noqa
+    except ImportError:
+        log.info("  Installing certifi for SSL certificate verification...")
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "certifi"],
+            capture_output=True
         )
 
     log.info(f"  Validating callsign: {callsign}")
