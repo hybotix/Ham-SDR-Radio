@@ -99,6 +99,28 @@ G90 Head Unit <---> G90 Body <---> Ham System (Python / CAT)
 - Serial CAT control is via the G90's USB port
 - The Pi 5 PCIe on "hammer" is confirmed good
 
+### 2.4 Hardware Interface Configuration
+
+The Ham System supports multiple audio/interface hardware options via a single configuration setting. No separate software distribution or code change is required to switch between interfaces — it is a runtime configuration choice.
+
+**Supported interfaces:**
+
+| Interface | Description |
+|-----------|-------------|
+| `de19` | G90 ACC port (DE-19 connector) — initial hardware |
+| `digirig` | DigiRig Mobile — clean isolated audio/serial interface |
+
+**Configuration setting in `settings-v0.0.1.py`:**
+
+```python
+# Hardware interface selection — "de19" or "digirig"
+AUDIO_INTERFACE = "de19"
+```
+
+The `rig_control` and audio modules read this setting at startup and configure themselves accordingly. Switching to a DigiRig requires only updating `AUDIO_INTERFACE`, `RIG_PORT`, and `AUDIO_DEVICE` in settings — no code changes, no reinstallation, one distribution serves both.
+
+**DigiRig upgrade path:** When/if upgrading from DE-19 to DigiRig, update the three settings above and restart. The rest of the system is unaffected.
+
 ---
 
 ## 3. Software Architecture
@@ -215,6 +237,8 @@ All system configuration is stored in a single versioned Python settings file (`
 |-----------|-------------|---------|
 | `RIG_PORT` | Serial port for G90 CAT control | `/dev/ttyUSB0` |
 | `RIG_BAUD` | G90 baud rate | `19200` |
+| `AUDIO_INTERFACE` | Hardware interface type (`de19` or `digirig`) | `de19` |
+| `AUDIO_DEVICE` | ALSA audio device name for selected interface | `G90 Audio` |
 | `RIG_POLL_INTERVAL` | CAT polling interval (seconds) | `0.25` |
 | `WSJTX_UDP_HOST` | WSJT-X UDP interface host | `127.0.0.1` |
 | `WSJTX_UDP_PORT` | WSJT-X UDP interface port | `2237` |
