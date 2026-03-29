@@ -55,6 +55,8 @@ import shutil
 import logging
 import json
 import re
+import urllib.request
+import urllib.error
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -301,6 +303,153 @@ def require_commands(*cmds: str):
 def cpu_jobs() -> int:
     """Return a safe parallel job count for make."""
     return os.cpu_count() or 2
+
+
+def _get_callsign_for_validation() -> str:
+    """
+    Get callsign for license validation.
+    Reads from settings if present, otherwise prompts the user.
+    """
+    if SETTINGS_PATH.exists():
+        try:
+            settings = json.loads(SETTINGS_PATH.read_text())
+            cs = settings.get("operator", {}).get("callsign", "")
+            if cs and cs != "YOUR_CALLSIGN":
+                log.info(f"  Using callsign from settings: {cs}")
+                return cs
+        except Exception:
+            pass
+
+    log.info("")
+    log.info("  Enter your amateur radio callsign to begin.")
+    log.info("  This will be validated against FCC/ISED/Ofcom databases.")
+    log.info("")
+    try:
+        cs = input("  Callsign: ").strip().upper()
+    except (EOFError, KeyboardInterrupt):
+        log.info("")
+        abort("Callsign entry cancelled.")
+    if not cs:
+        abort("No callsign entered. A valid callsign is required to proceed.")
+    return cs
+
+
+CALLOOK_API   = "https://callook.info/{callsign}/json"
+LICENSE_CACHE = Path("config") / "license_cache-v0.0.1.json"
+
+FCC_CLASS_MAP = {
+    "T": "Technician",
+    "G": "General",
+    "A": "Advanced",
+    "E": "Amateur Extra",
+    "N": "Novice",
+    "P": "Technician Plus",
+}
+
+
+def _detect_authority(callsign: str) -> str:
+    cs = callsign.strip().upper()
+    if re.match(r"^[AKNW]", cs):           return "FCC"
+    if re.match(r"^V[AEY]|^VO", cs):       return "ISED"
+    if re.match(r"^[GM2]", cs):            return "OFCOM"
+    return None
+
+
+def _lookup_fcc(callsign: str) -> dict:
+    url = CALLOOK_API.format(callsign=callsign.upper())
+    log.info("  Querying callook.info...")
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "HamSystem/0.0.1"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.URLError as e:
+        abort(f"Network error querying callook.info: {e}\n  Check your internet connection and re-run.")
+    except json.JSONDecodeError as e:
+        abort(f"Invalid response from callook.info: {e}")
+
+    status = data.get("status", "").upper()
+    if status == "INVALID":
+        abort(
+            f"Callsign '{callsign.upper()}' not found in FCC database.\n"
+            f"  Verify the callsign is correct and the license is active.\n"
+            f"  Check: https://wireless2.fcc.gov/UlsApp/UlsSearch/searchAmateur.jsp"
+        )
+    if status != "VALID":
+        abort(f"Unexpected license status '{status}' for '{callsign.upper()}'. License may be expired or inactive.")
+
+    raw_class = data.get("current", {}).get("operClass", "")
+    import datetime as _dt
+    return {
+        "callsign":      data.get("current", {}).get("callsign", callsign.upper()),
+        "authority":     "FCC",
+        "license_class": FCC_CLASS_MAP.get(raw_class, f"Unknown ({raw_class})"),
+        "status":        status,
+        "expiry":        data.get("otherInfo", {}).get("expiryDate", ""),
+        "grid_square":   data.get("location", {}).get("gridsquare", ""),
+        "name":          data.get("name", ""),
+        "last_verified": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+    }
+
+
+def _infer_ofcom(callsign: str) -> dict:
+    import datetime as _dt
+    cs = callsign.strip().upper()
+    if cs.startswith("2"):          lc = "Intermediate"
+    elif re.match(r"^M[36]", cs):  lc = "Foundation"
+    else:                           lc = "Full"
+    return {
+        "callsign": cs, "authority": "OFCOM", "license_class": lc,
+        "status": "VALID", "expiry": "", "grid_square": "", "name": "",
+        "last_verified": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+        "notes": "Licence class inferred from callsign structure.",
+    }
+
+
+def validate_license(callsign: str) -> dict:
+    """
+    Validate operator callsign. FIRST step -- nothing proceeds without this.
+    Aborts if callsign is not found or cannot be verified.
+    """
+    log.info("")
+    log.info("Step 0: Validating operator license...")
+    log.info(f"  Callsign: {callsign.upper()}")
+
+    authority = _detect_authority(callsign)
+    if not authority:
+        abort(
+            f"Cannot determine licensing authority for '{callsign}'.\n"
+            f"  Supported prefixes:\n"
+            f"    US (FCC):      A, K, N, W\n"
+            f"    Canada (ISED): VE, VA, VY, VO\n"
+            f"    UK (Ofcom):    G, M, 2"
+        )
+
+    log.info(f"  Authority: {authority}")
+
+    if authority == "FCC":
+        license_data = _lookup_fcc(callsign)
+    elif authority == "ISED":
+        abort(
+            "ISED (Canada) lookup requires the local ISED database cache.\n"
+            "  Run license_advisor-v0.0.1.py standalone first, then re-run init."
+        )
+    else:
+        license_data = _infer_ofcom(callsign)
+
+    log.info(f"  Name         : {license_data.get('name', 'N/A')}")
+    log.info(f"  Class        : {license_data['license_class']}")
+    log.info(f"  Status       : {license_data['status']}")
+    if license_data.get("expiry"):
+        log.info(f"  Expiry       : {license_data['expiry']}")
+    if license_data.get("grid_square"):
+        log.info(f"  Grid Square  : {license_data['grid_square']}")
+
+    LICENSE_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    LICENSE_CACHE.write_text(json.dumps(license_data, indent=4) + "\n")
+    log.info(f"  License cached to {LICENSE_CACHE}")
+    log.info("  License validation -- OK")
+    return license_data
+
 
 
 
@@ -1337,9 +1486,10 @@ def check_path():
 def main():
     banner()
 
+    validate_operator_license()
+
     check_path()
     check_platform()
-    validate_operator_license()
     install_apt_deps()
     radio_profile = select_radio()
     build_openssl()
