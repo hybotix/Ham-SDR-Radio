@@ -5,12 +5,9 @@ Project: Ham System — N7PKT Integrated Ham Radio Control Platform
 Author:  Dale — Hybrid RobotiX / The Accessibility Files
 Version: 0.0.1
 
-Prerequisite:
-  - Python 3.14.3 (built from source, must be used to invoke this script)
-
 This script handles:
-  Step 1 — Verify Python 3.14.3
-  Step 2 — Check/build OpenSSL 4.1 from source
+  Step 1 — Check/build OpenSSL 4.1 from source
+  Step 2 — Check/build Python 3.14.3 from source
   Step 3 — Scaffold Ham System directory structure
   Step 4 — Check/build SDR++ from latest source
   Step 5 — Check/build FlRig from latest source
@@ -21,6 +18,9 @@ This script handles:
 Safe to re-run — all steps are idempotent.
 Aborts immediately with a clear error if any required build fails.
 NO bash or shell scripts. Python only.
+
+NOTE: This script may be initially invoked with the system Python to bootstrap
+      the build. Once Python 3.14.3 is built and installed, re-invoke with it.
 """
 
 VERSION = "0.0.1"
@@ -59,6 +59,14 @@ OPENSSL_VERSION  = "4.1"
 OPENSSL_REPO     = "https://github.com/openssl/openssl.git"
 OPENSSL_TAG      = "openssl-4.1"
 OPENSSL_DIR      = Path("build") / "openssl"
+OPENSSL_PREFIX   = "/usr/local"
+
+PYTHON_VERSION   = "3.14.3"
+PYTHON_TARBALL   = f"Python-{PYTHON_VERSION}.tar.xz"
+PYTHON_URL       = f"https://www.python.org/ftp/python/{PYTHON_VERSION}/{PYTHON_TARBALL}"
+PYTHON_DIR       = Path("build") / f"Python-{PYTHON_VERSION}"
+PYTHON_PREFIX    = "/usr/local"
+PYTHON_BIN       = Path(PYTHON_PREFIX) / "bin" / "python3.14"
 
 SDRPP_REPO       = "https://github.com/AlexandreRouma/SDRPlusPlus.git"
 SDRPP_DIR        = Path("build") / "SDRPlusPlus"
@@ -116,6 +124,8 @@ def banner():
     log.info("  Hybrid RobotiX / The Accessibility Files")
     log.info("  I. WILL. NEVER. GIVE. UP. OR. SURRENDER.")
     log.info("=" * 70)
+    log.info(f"  Invoked with: {sys.executable} ({sys.version.split()[0]})")
+    log.info("=" * 70)
 
 
 def abort(message: str):
@@ -156,7 +166,10 @@ def require_commands(*cmds: str):
     """Abort if any required build-time commands are missing."""
     for cmd in cmds:
         if not check_command(cmd):
-            abort(f"Required build tool '{cmd}' not found on PATH. Install it and re-run.")
+            abort(
+                f"Required build tool '{cmd}' not found on PATH. "
+                f"Install it and re-run."
+            )
 
 
 def cpu_jobs() -> int:
@@ -165,29 +178,12 @@ def cpu_jobs() -> int:
 
 
 # ---------------------------------------------------------------------------
-# Step 1 — Verify Python version
-# ---------------------------------------------------------------------------
-
-def check_python():
-    log.info("")
-    log.info("Step 1: Verifying Python version...")
-    v = sys.version_info
-    if (v.major, v.minor, v.micro) < REQUIRED_PYTHON:
-        abort(
-            f"Python {'.'.join(str(x) for x in REQUIRED_PYTHON)} is required. "
-            f"Currently running {v.major}.{v.minor}.{v.micro}. "
-            f"Build Python 3.14.3 from source and invoke this script with it."
-        )
-    log.info(f"  Python {v.major}.{v.minor}.{v.micro} — OK")
-
-
-# ---------------------------------------------------------------------------
-# Step 2 — Build OpenSSL 4.1 from source
+# Step 1 — Build OpenSSL 4.1 from source
 # ---------------------------------------------------------------------------
 
 def build_openssl():
     log.info("")
-    log.info("Step 2: Checking OpenSSL 4.1...")
+    log.info("Step 1: Checking OpenSSL 4.1...")
 
     result = subprocess.run(["openssl", "version"], capture_output=True, text=True)
     if result.returncode == 0:
@@ -220,7 +216,10 @@ def build_openssl():
 
     log.info("  Configuring OpenSSL...")
     run(
-        ["./Configure", "--prefix=/usr/local", "--openssldir=/usr/local/ssl", "linux-aarch64"],
+        ["./Configure",
+         f"--prefix={OPENSSL_PREFIX}",
+         f"--openssldir={OPENSSL_PREFIX}/ssl",
+         "linux-aarch64"],
         cwd=OPENSSL_DIR,
         desc="Configure OpenSSL",
     )
@@ -235,9 +234,90 @@ def build_openssl():
     if result.returncode != 0 or f"OpenSSL {OPENSSL_VERSION}" not in result.stdout:
         abort(
             f"OpenSSL build completed but OpenSSL {OPENSSL_VERSION} not detected. "
-            f"Verify /usr/local/bin is on PATH and re-run."
+            f"Verify {OPENSSL_PREFIX}/bin is on PATH and re-run."
         )
     log.info(f"  OpenSSL {OPENSSL_VERSION} built and installed — OK")
+
+
+# ---------------------------------------------------------------------------
+# Step 2 — Build Python 3.14.3 from source
+# ---------------------------------------------------------------------------
+
+def build_python():
+    log.info("")
+    log.info("Step 2: Checking Python 3.14.3...")
+
+    # Check if target Python binary already exists
+    if PYTHON_BIN.exists():
+        result = subprocess.run(
+            [str(PYTHON_BIN), "--version"], capture_output=True, text=True
+        )
+        if PYTHON_VERSION in result.stdout + result.stderr:
+            log.info(f"  Python {PYTHON_VERSION} already installed at {PYTHON_BIN} — skipping build")
+            _warn_if_wrong_python()
+            return
+
+    log.info(f"  Python {PYTHON_VERSION} not found — building from source...")
+    require_commands("make", "gcc", "wget")
+
+    BUILD_DIR.mkdir(exist_ok=True)
+
+    tarball_path = BUILD_DIR / PYTHON_TARBALL
+    if not tarball_path.exists():
+        log.info(f"  Downloading {PYTHON_TARBALL}...")
+        run(
+            ["wget", "-q", "-O", str(tarball_path), PYTHON_URL],
+            desc=f"wget Python {PYTHON_VERSION}",
+        )
+    else:
+        log.info(f"  {PYTHON_TARBALL} already downloaded — skipping download")
+
+    if not PYTHON_DIR.exists():
+        log.info(f"  Extracting {PYTHON_TARBALL}...")
+        run(
+            ["tar", "-xf", str(tarball_path), "-C", str(BUILD_DIR)],
+            desc=f"tar extract Python {PYTHON_VERSION}",
+        )
+    else:
+        log.info(f"  Python source already extracted — skipping extraction")
+
+    log.info("  Configuring Python...")
+    run(
+        ["./configure",
+         f"--prefix={PYTHON_PREFIX}",
+         "--enable-optimizations",
+         "--with-lto",
+         f"--with-openssl={OPENSSL_PREFIX}"],
+        cwd=PYTHON_DIR,
+        desc=f"configure Python {PYTHON_VERSION}",
+    )
+
+    log.info(f"  Building Python with {cpu_jobs()} jobs (this will take a while)...")
+    run(["make", f"-j{cpu_jobs()}"], cwd=PYTHON_DIR, desc=f"make Python {PYTHON_VERSION}")
+
+    log.info("  Installing Python...")
+    run(["sudo", "make", "altinstall"], cwd=PYTHON_DIR, desc="make altinstall Python")
+
+    if not PYTHON_BIN.exists():
+        abort(
+            f"Python build completed but {PYTHON_BIN} not found. "
+            f"Check build output and re-run."
+        )
+    log.info(f"  Python {PYTHON_VERSION} built and installed at {PYTHON_BIN} — OK")
+    _warn_if_wrong_python()
+
+
+def _warn_if_wrong_python():
+    """Warn if this script is not being run with Python 3.14.3."""
+    v = sys.version_info
+    if (v.major, v.minor, v.micro) < REQUIRED_PYTHON:
+        log.warning("")
+        log.warning("  WARNING: This script is running under Python "
+                    f"{v.major}.{v.minor}.{v.micro}.")
+        log.warning(f"  Python {PYTHON_VERSION} is now installed at {PYTHON_BIN}.")
+        log.warning(f"  Re-invoke this script with: {PYTHON_BIN} init-v0.0.1.py")
+        log.warning("  Remaining steps will continue with the current interpreter.")
+        log.warning("")
 
 
 # ---------------------------------------------------------------------------
@@ -349,10 +429,14 @@ def build_flrig():
 def install_python_deps():
     log.info("")
     log.info("Step 6: Installing Python dependencies...")
+
+    # Use the installed Python 3.14.3 binary if available, otherwise current
+    pip_python = str(PYTHON_BIN) if PYTHON_BIN.exists() else sys.executable
+
     for package in PYTHON_DEPS:
         log.info(f"  Installing {package}...")
         run(
-            [sys.executable, "-m", "pip", "install", "--upgrade", package],
+            [pip_python, "-m", "pip", "install", "--upgrade", package],
             desc=f"pip install {package}",
         )
     log.info("  All Python dependencies installed — OK")
@@ -427,7 +511,7 @@ RIG_POLL_INTERVAL = 0.25            # CAT polling interval in seconds
 
 # ALSA device name -- update to match your interface
 # de19:    typically "G90 Audio" or similar
-# digirig: typically "DigiRig" or check via: python3 -m sounddevice
+# digirig: typically "DigiRig" or check via: python3.14 -m sounddevice
 AUDIO_DEVICE = "G90 Audio"
 
 # ---------------------------------------------------------------------------
@@ -493,8 +577,8 @@ def create_settings():
 def main():
     banner()
 
-    check_python()
     build_openssl()
+    build_python()
     scaffold_directories()
     build_sdrpp()
     build_flrig()
@@ -507,6 +591,12 @@ def main():
     log.info("  Initialization complete.")
     log.info(f"  Review and edit {SETTINGS_PATH} before running Ham System.")
     log.info(f"  Full log saved to: {log_filename}")
+    if PYTHON_BIN.exists():
+        v = sys.version_info
+        if (v.major, v.minor, v.micro) < REQUIRED_PYTHON:
+            log.info("")
+            log.info(f"  ACTION REQUIRED: Re-invoke this script with Python {PYTHON_VERSION}:")
+            log.info(f"    {PYTHON_BIN} init-v0.0.1.py")
     log.info("=" * 70)
     log.info("")
 
