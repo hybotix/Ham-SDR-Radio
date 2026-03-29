@@ -151,6 +151,7 @@ APT_PACKAGES = [
     "libvolk-dev",          # Vector optimized math
     "libfftw3-dev",         # FFT library
     "librtlsdr-dev",        # RTL-SDR support
+    "libzstd-dev",          # Zstandard compression (SDR++)
 
     # FlRig dependencies
     "libfltk1.3-dev",       # FLTK GUI toolkit
