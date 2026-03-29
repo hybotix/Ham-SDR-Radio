@@ -153,6 +153,7 @@ Adding a second radio requires only adding an entry to `RADIOS` — no code chan
 | Language | Python 3.14.3 (required — built from source if not present) |
 | CAT Control | Direct `pyserial` (see Known Bugs section) |
 | SDR | SDR++ (always built from latest source, ALL modules enabled) |
+| SDR Role | Spectrum display, demodulation, recording, signal analysis, and all SDR functions |
 | Rig Control Daemon | FlRig (built from latest source if not present) |
 | Digital Modes | WSJT-X (external), interfaced via UDP API |
 | Audio | `pyaudio` / ALSA |
@@ -162,7 +163,7 @@ Adding a second radio requires only adding an entry to `RADIOS` — no code chan
 | UI | TBD — touch-friendly, large buttons |
 | Config Format | JSON — all configuration files use `.json` extension |
 
-> **Note:** SDR++ is built with all supported source modules enabled, making it compatible with any supported SDR hardware — not just the primary radio. This includes RTL-SDR, Airspy, HackRF, BladeRF, LimeSDR, PlutoSDR, and more.
+> **Note:** SDR++ is the full SDR frontend for the Ham System. It handles spectrum display, signal demodulation, IQ recording, signal analysis, and all other SDR functions. It is built with all supported source modules enabled, making it compatible with any supported SDR hardware — RTL-SDR, Airspy, HackRF, BladeRF, LimeSDR, PlutoSDR, and more. SDR++ operates independently alongside the CAT control and digital mode components of the Ham System.
 
 ### 3.2 Module Structure (Planned)
 
