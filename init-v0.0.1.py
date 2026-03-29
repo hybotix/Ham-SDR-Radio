@@ -6,6 +6,7 @@ Author:  Dale — Hybrid RobotiX / The Accessibility Files
 Version: 0.0.1
 
 This script handles:
+  Step 0 — Install required system build dependencies via apt
   Step 1 — Check/build OpenSSL 4.1 from source
   Step 2 — Check/build Python 3.14.3 from source
   Step 3 — Scaffold Ham System directory structure
@@ -14,6 +15,8 @@ This script handles:
   Step 6 — Install Python dependencies via pip
   Step 7 — Verify radio serial port(s)
   Step 8 — Create default settings file if not present
+
+Package manager: apt/dpkg (Debian/Raspberry Pi OS)
 
 Safe to re-run — all steps are idempotent.
 Aborts immediately with a clear error if any required build fails.
@@ -92,6 +95,55 @@ BUILD_DIR        = Path("build")
 SETTINGS_PATH    = Path("config") / "settings-v0.0.1.py"
 
 REQUIRED_PYTHON  = (3, 14, 3)
+
+# ---------------------------------------------------------------------------
+# System Build Dependencies (installed via apt)
+# These are prerequisites for building OpenSSL, Python, SDR++, and FlRig.
+# ---------------------------------------------------------------------------
+
+APT_PACKAGES = [
+    # Core build tools
+    "build-essential",      # gcc, g++, make
+    "cmake",                # SDR++ build system
+    "git",                  # Source cloning
+    "wget",                 # Python tarball download
+    "perl",                 # OpenSSL configure
+    "autoconf",             # FlRig build system
+    "automake",             # FlRig build system
+    "libtool",              # FlRig build system
+    "pkg-config",           # General build support
+
+    # Python build dependencies
+    "libssl-dev",           # SSL support (pre-build system OpenSSL)
+    "zlib1g-dev",           # zlib compression
+    "libffi-dev",           # Foreign function interface
+    "libreadline-dev",      # Readline support
+    "libsqlite3-dev",       # SQLite support
+    "libbz2-dev",           # bzip2 support
+    "liblzma-dev",          # lzma/xz support
+    "libncurses5-dev",      # ncurses support
+    "libgdbm-dev",          # gdbm support
+    "uuid-dev",             # UUID support
+    "tk-dev",               # Tkinter support
+
+    # SDR++ dependencies
+    "libglfw3-dev",         # OpenGL windowing
+    "libvolk-dev",          # Vector optimized math
+    "libfftw3-dev",         # FFT library
+    "librtlsdr-dev",        # RTL-SDR support
+
+    # FlRig dependencies
+    "libfltk1.3-dev",       # FLTK GUI toolkit
+    "libxft-dev",           # Font rendering
+    "libxinerama-dev",      # Multi-monitor support
+
+    # Audio
+    "libasound2-dev",       # ALSA audio
+    "portaudio19-dev",      # PortAudio (for pyaudio)
+
+    # Serial port
+    "python3-serial",       # pyserial bootstrap (system level)
+]
 
 # ---------------------------------------------------------------------------
 # Supported Radio Model Catalogue
@@ -213,6 +265,53 @@ def require_commands(*cmds: str):
 def cpu_jobs() -> int:
     """Return a safe parallel job count for make."""
     return os.cpu_count() or 2
+
+
+# ---------------------------------------------------------------------------
+# Step 0 — Install system build dependencies via apt
+# ---------------------------------------------------------------------------
+
+def install_apt_deps():
+    log.info("")
+    log.info("Step 0: Installing system build dependencies via apt...")
+
+    # Update package list first
+    log.info("  Running apt-get update...")
+    result = subprocess.run(
+        ["sudo", "apt-get", "update", "-qq"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        abort(f"apt-get update failed:\n{result.stderr.strip()}")
+
+    # Check which packages are already installed
+    missing = []
+    for pkg in APT_PACKAGES:
+        result = subprocess.run(
+            ["dpkg", "-s", pkg],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0 or "Status: install ok installed" not in result.stdout:
+            missing.append(pkg)
+
+    if not missing:
+        log.info("  All system build dependencies already installed — OK")
+        return
+
+    log.info(f"  Installing {len(missing)} missing package(s):")
+    for pkg in missing:
+        log.info(f"    {pkg}")
+
+    result = subprocess.run(
+        ["sudo", "apt-get", "install", "-y", "--no-install-recommends"] + missing,
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        log.error(f"  stdout: {result.stdout.strip()}")
+        log.error(f"  stderr: {result.stderr.strip()}")
+        abort("apt-get install failed. Check your network connection and apt sources.")
+
+    log.info(f"  All system build dependencies installed — OK")
 
 
 # ---------------------------------------------------------------------------
@@ -829,6 +928,7 @@ def main():
     banner()
 
     check_path()
+    install_apt_deps()
     radio_profile = select_radio()
     build_openssl()
     build_python()
