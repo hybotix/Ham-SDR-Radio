@@ -101,25 +101,43 @@ G90 Head Unit <---> G90 Body <---> Ham System (Python / CAT)
 
 ### 2.4 Hardware Interface Configuration
 
-The Ham System supports multiple audio/interface hardware options via a single configuration setting. No separate software distribution or code change is required to switch between interfaces — it is a runtime configuration choice.
+The Ham System supports multiple audio/interface hardware options per radio via configuration. No separate software distribution or code change is required to switch interfaces or add radios.
 
-**Supported interfaces:**
+**Supported interfaces (per radio):**
 
 | Interface | Description |
 |-----------|-------------|
-| `de19` | G90 ACC port (DE-19 connector) — initial hardware |
+| `de19` | ACC port (DE-19 connector) — initial hardware |
 | `digirig` | DigiRig Mobile — clean isolated audio/serial interface |
 
-**Configuration setting in `settings-v0.0.1.py`:**
+Each radio instance has its own interface setting in `settings-v0.0.1.py`:
 
 ```python
-# Hardware interface selection — "de19" or "digirig"
-AUDIO_INTERFACE = "de19"
+RADIOS = [
+    {
+        "index":           1,
+        "name":            "Xiegu G90",
+        "model":           "g90",
+        "port":            "/dev/ttyUSB0",
+        "baud":            19200,
+        "audio_interface": "de19",
+        "audio_device":    "G90 Audio",
+    },
+    # {
+    #     "index":           2,
+    #     "name":            "...",
+    #     "model":           "...",
+    #     "port":            "/dev/ttyUSB1",
+    #     "baud":            ...,
+    #     "audio_interface": "...",
+    #     "audio_device":    "...",
+    # },
+]
 ```
 
-The `rig_control` and audio modules read this setting at startup and configure themselves accordingly. Switching to a DigiRig requires only updating `AUDIO_INTERFACE`, `RIG_PORT`, and `AUDIO_DEVICE` in settings — no code changes, no reinstallation, one distribution serves both.
+Adding a second radio requires only adding an entry to `RADIOS` — no code changes. Each radio runs fully independently with its own CAT control thread, audio pipeline, and TX guard instance.
 
-**DigiRig upgrade path:** When/if upgrading from DE-19 to DigiRig, update the three settings above and restart. The rest of the system is unaffected.
+**DigiRig upgrade path:** Update `audio_interface` and `audio_device` for the relevant radio entry. The rest of the system is unaffected.
 
 ---
 
@@ -145,29 +163,38 @@ The `rig_control` and audio modules read this setting at startup and configure t
 ```
 ham_system/
 ├── core/
-│   ├── rig_control-v0.0.1.py        # Safe CAT abstraction layer (NO hamlib)
-│   ├── tx_guard-v0.0.1.py           # Transmit safety enforcement
-│   └── state_machine-v0.0.1.py      # Radio state tracking
+│   ├── radio_manager-v0.0.1.py      # Multi-radio lifecycle manager
+│   ├── rig_control-v0.0.1.py        # Per-radio CAT abstraction (NO hamlib)
+│   ├── tx_guard-v0.0.1.py           # Per-radio TX safety enforcement
+│   └── state_machine-v0.0.1.py      # Per-radio state tracking
 ├── modes/
-│   ├── ft8_interface-v0.0.1.py      # WSJT-X UDP API bridge
-│   ├── wspr_interface-v0.0.1.py     # WSPR interface
-│   └── cw_keyer-v0.0.1.py           # CW keying support
+│   ├── ft8_interface-v0.0.1.py      # WSJT-X UDP API bridge (per radio)
+│   ├── wspr_interface-v0.0.1.py     # WSPR interface (per radio)
+│   └── cw_keyer-v0.0.1.py           # CW keying support (per radio)
 ├── logging/
-│   ├── qso_log-v0.0.1.py            # SQLite QSO logging
+│   ├── qso_log-v0.0.1.py            # SQLite QSO logging (radio index tagged)
 │   └── adif_export-v0.0.1.py        # ADIF export for LoTW / QRZ
 ├── aprs/
 │   └── beacon-v0.0.1.py             # APRS position beaconing
 ├── mqtt/
-│   └── chairiet_bridge-v0.0.1.py    # My Chairiet MQTT integration
+│   └── chairiet_bridge-v0.0.1.py    # My Chairiet MQTT integration (indexed topics)
 ├── ui/
-│   └── main_ui-v0.0.1.py            # Touch UI (TBD)
+│   └── main_ui-v0.0.1.py            # Touch UI — per-radio panels (TBD)
 └── config/
-    └── settings-v0.0.1.py           # System configuration
+    └── settings-v0.0.1.py           # System configuration (RADIOS list)
 ```
+
+`radio_manager-v0.0.1.py` is the top-level orchestrator — it reads the `RADIOS` list from settings, instantiates one `rig_control`, `tx_guard`, and `state_machine` per entry, and manages their lifecycle. Adding a radio to the config automatically spawns a new set of instances at startup.
 
 ### 3.3 CAT Control Strategy
 
 The Ham System will use **direct `pyserial` communication** with supported radios using raw CAT commands (CI-V for the Xiegu G90). This completely bypasses hamlib and eliminates exposure to known hamlib bugs.
+
+Each radio runs as a fully independent instance with its own:
+- CAT control thread (`rig_control` instance)
+- Audio pipeline
+- TX guard instance
+- MQTT publisher (indexed topic namespace)
 
 The `rig_control.py` module will implement:
 - Frequency read/set
@@ -176,7 +203,7 @@ The `rig_control.py` module will implement:
 - TX/RX state monitoring
 - **TX is NEVER commanded by software without explicit user action**
 
-Polling interval: 250–500ms for state synchronization.
+Polling interval: 250–500ms per radio, per instance. Radios operate fully independently — one radio transmitting does not block or affect another.
 
 ### 3.4 WSJT-X Integration
 
@@ -188,15 +215,25 @@ FT8 and WSPR decoding/encoding is handled by WSJT-X running as an external proce
 
 ### 3.5 MQTT Integration (My Chairiet)
 
-Ham System publishes to the My Chairiet MQTT bus:
+Ham System publishes per-radio telemetry to the My Chairiet MQTT bus using indexed topics. Each radio instance publishes independently.
+
+**Topic structure:** `console/radio/{index}/{parameter}`
 
 ```
-console/radio/frequency     # Current operating frequency
-console/radio/mode          # Current mode (USB/LSB/CW/etc.)
-console/radio/tx_state      # Transmitting: true/false
-console/radio/smeter        # S-meter reading
-alerts/radio/tx_stuck       # ALERT: TX guard triggered
+console/radio/1/frequency   # Radio 1 operating frequency (Hz)
+console/radio/1/mode        # Radio 1 mode (USB/LSB/CW/FT8/etc.)
+console/radio/1/tx_state    # Radio 1 transmitting: true/false
+console/radio/1/smeter      # Radio 1 S-meter reading
+console/radio/2/frequency   # Radio 2 operating frequency (Hz)
+console/radio/2/mode        # Radio 2 mode
+console/radio/2/tx_state    # Radio 2 transmitting: true/false
+console/radio/2/smeter      # Radio 2 S-meter reading
+
+alerts/radio/1/tx_stuck     # ALERT: Radio 1 TX guard triggered
+alerts/radio/2/tx_stuck     # ALERT: Radio 2 TX guard triggered
 ```
+
+A subscriber can monitor all radios with `console/radio/#` or a single radio with `console/radio/1/#`.
 
 ---
 
@@ -235,10 +272,12 @@ All system configuration is stored in a single versioned Python settings file (`
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `RIG_PORT` | Serial port for radio CAT control | `/dev/ttyUSB0` |
-| `RIG_BAUD` | CAT baud rate for selected radio | `19200` |
-| `AUDIO_INTERFACE` | Hardware interface type (`de19` or `digirig`) | `de19` |
-| `AUDIO_DEVICE` | ALSA audio device name for selected interface | *(radio dependent)* |
+| `RADIOS` | List of radio config dicts — one entry per radio | `[{G90 entry}]` |
+| `RADIOS[n].index` | Radio index (1-based) — used in MQTT topics | `1` |
+| `RADIOS[n].port` | Serial port for CAT control | `/dev/ttyUSB0` |
+| `RADIOS[n].baud` | CAT baud rate | `19200` |
+| `RADIOS[n].audio_interface` | Interface type (`de19` or `digirig`) | `de19` |
+| `RADIOS[n].audio_device` | ALSA audio device name | *(radio dependent)* |
 | `RIG_POLL_INTERVAL` | CAT polling interval (seconds) | `0.25` |
 | `WSJTX_UDP_HOST` | WSJT-X UDP interface host | `127.0.0.1` |
 | `WSJTX_UDP_PORT` | WSJT-X UDP interface port | `2237` |

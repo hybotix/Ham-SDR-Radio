@@ -12,7 +12,7 @@ This script handles:
   Step 4 — Check/build SDR++ from latest source
   Step 5 — Check/build FlRig from latest source
   Step 6 — Install Python dependencies via pip
-  Step 7 — Verify radio serial port
+  Step 7 — Verify radio serial port(s)
   Step 8 — Create default settings file if not present
 
 Safe to re-run — all steps are idempotent.
@@ -94,9 +94,11 @@ SETTINGS_PATH    = Path("config") / "settings-v0.0.1.py"
 REQUIRED_PYTHON  = (3, 14, 3)
 
 # ---------------------------------------------------------------------------
-# Supported Radio Profiles
-# Each entry defines the default CAT parameters for that radio.
-# Add new radios here as support is developed.
+# Supported Radio Model Catalogue
+# Defines available radio models and their default CAT parameters.
+# This is the master catalogue of supported hardware — distinct from the
+# RADIOS list in settings, which defines the user's actual connected radios.
+# Add new models here as support is developed.
 # ---------------------------------------------------------------------------
 
 RADIO_PROFILES = {
@@ -497,13 +499,13 @@ def verify_g90_port():
 
     if found:
         log.info(f"  Radio serial port found: {found} — OK")
-        log.info("  NOTE: Verify this is the correct port and update RIG_PORT in settings if needed.")
+        log.info("  NOTE: Verify this is the correct port and update the RADIOS list in settings if needed.")
     else:
         log.warning("  WARNING: No radio serial port detected on any candidate path:")
         for port in RADIO_PORT_CANDIDATES:
             log.warning(f"    {port}")
         log.warning("  The radio may not be connected or may appear on a different port.")
-        log.warning(f"  Update RIG_PORT in {SETTINGS_PATH} when the radio is connected.")
+        log.warning(f"  Update the RADIOS list in {SETTINGS_PATH} when the radio is connected.")
         log.warning("  Continuing — this is non-fatal.")
 
 
@@ -535,26 +537,36 @@ GRID_SQUARE = ""                    # Maidenhead grid square -- set before opera
 # ---------------------------------------------------------------------------
 
 # Select active interface: "de19" (ACC port / DE-19) or "digirig"
-AUDIO_INTERFACE = "de19"
-
 # ---------------------------------------------------------------------------
-# Radio CAT Control
-# ---------------------------------------------------------------------------
-
-# Radio: {radio_name}
-RIG_MODEL         = "{radio_model}"
-RIG_PORT          = "{rig_port}"    # Serial port for CAT control
-RIG_BAUD          = {rig_baud}      # CAT baud rate for selected radio
-RIG_POLL_INTERVAL = 0.25            # CAT polling interval in seconds
-
-# ---------------------------------------------------------------------------
-# Audio
+# Radio Configuration
+# One dict per connected radio — each operates fully independently.
+# Add additional radios by appending entries to this list.
+# Radio index is used in MQTT topics: console/radio/{{index}}/...
 # ---------------------------------------------------------------------------
 
-# ALSA device name -- update to match your interface
-# de19:    typically the radio's USB audio device name
-# digirig: typically "DigiRig" or check via: python3.14 -m sounddevice
-AUDIO_DEVICE = "G90 Audio"    # Update to match your radio's audio device
+RADIOS = [
+    {{
+        "index":           1,
+        "name":            "{radio_name}",
+        "model":           "{radio_model}",
+        "port":            "{rig_port}",   # Serial port for CAT control
+        "baud":            {rig_baud},     # CAT baud rate
+        "poll_interval":   0.25,           # CAT polling interval in seconds
+        "audio_interface": "de19",         # "de19" or "digirig"
+        "audio_device":    "G90 Audio",    # Update to match radio audio device
+    }},
+    # Add additional radios here:
+    # {{
+    #     "index":           2,
+    #     "name":            "...",
+    #     "model":           "...",
+    #     "port":            "/dev/ttyUSB1",
+    #     "baud":            ...,
+    #     "poll_interval":   0.25,
+    #     "audio_interface": "...",
+    #     "audio_device":    "...",
+    # }},
+]
 
 # ---------------------------------------------------------------------------
 # WSJT-X
@@ -605,8 +617,8 @@ def create_settings(radio_profile: dict):
     log.info("Step 8: Checking settings file...")
     if SETTINGS_PATH.exists():
         log.info(f"  {SETTINGS_PATH} already exists — skipping")
-        log.info(f"  NOTE: If you changed radio selection, update RIG_MODEL, RIG_BAUD,")
-        log.info(f"        and RIG_PORT in {SETTINGS_PATH} manually.")
+        log.info(f"  NOTE: If you changed radio selection, update the RADIOS list")
+        log.info(f"        in {SETTINGS_PATH} manually.")
         return
     log.info(f"  Creating default settings file: {SETTINGS_PATH}")
     settings_content = DEFAULT_SETTINGS.format(
@@ -626,10 +638,10 @@ def create_settings(radio_profile: dict):
 
 def select_radio() -> dict:
     """
-    Present the user with a menu of supported radios and return the
-    selected radio profile dict. Aborts if no valid selection is made.
-    Currently only the Xiegu G90 is supported — additional radios will
-    be added as development progresses.
+    Present the user with a menu of supported radio models and return the
+    selected profile dict for use as the initial RADIOS entry in settings.
+    Additional radios can be added manually to the RADIOS list in settings
+    after initialization. Currently only the Xiegu G90 is supported.
     """
     log.info("")
     log.info("Radio Selection:")
