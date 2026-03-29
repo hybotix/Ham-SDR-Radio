@@ -26,7 +26,7 @@ Package manager: apt/dpkg required. Debian-based systems ONLY.
 Virtual environment: ~/Virtual/Ham-SDR-Radio (created from Python 3.14.3)
 Startup script:      start-v0.0.1.py (sources venv, cds into repo, starts system)
 
-Safe to re-run — all steps are idempotent.
+Safe to re-run — completed steps are automatically skipped.
 Aborts immediately with a clear error if any required build fails.
 NO bash or shell scripts. Python only.
 

@@ -90,7 +90,7 @@ The initialization script handles everything in order:
 | 8 | Generate startup script (`start-v0.0.1.py`) |
 | 9 | Generate default settings file (`config/settings-v0.0.1.json`) |
 
-All steps are idempotent — safe to re-run on an already initialized system.
+All steps are safe to re-run — completed steps are automatically skipped.
 
 ---
 
