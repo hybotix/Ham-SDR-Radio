@@ -168,7 +168,7 @@ APT_PACKAGES = [
 
 RADIO_PROFILES = {
     "1": {
-        "name":        "Xiegu G90",
+        "name":        "Xiegu G90",      # Radio model name
         "model":       "g90",
         "protocol":    "CI-V",
         "baud":        19200,
@@ -706,7 +706,7 @@ RADIOS = [
         "baud":            {rig_baud},     # CAT baud rate
         "poll_interval":   0.25,           # CAT polling interval in seconds
         "audio_interface": "de19",         # "de19" or "digirig"
-        "audio_device":    "G90 Audio",    # Update to match radio audio device
+        "audio_device":    "your-audio-device",  # Update to match radio audio device
     }},
     # Add additional radios here:
     # {{
@@ -914,7 +914,7 @@ def select_radio() -> dict:
     Present the user with a menu of supported radio models and return the
     selected profile dict for use as the initial RADIOS entry in settings.
     Additional radios can be added manually to the RADIOS list in settings
-    after initialization. Currently only the Xiegu G90 is supported.
+    after initialization. Currently one radio model is supported.
     """
     log.info("")
     log.info("Radio Selection:")

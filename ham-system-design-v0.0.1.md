@@ -13,7 +13,7 @@
 
 ### 1.1 Purpose
 
-The Ham System is a Python-based integrated control platform for HF transceivers, designed to run on the Raspberry Pi 5 ("hammer") and serve as a fully featured mobile amateur radio station integrated with the My Chairiet wheelchair platform. The initial supported radio is the Xiegu G90.
+The Ham System is a Python-based integrated control platform for HF transceivers, designed to run on the Raspberry Pi 5 ("hammer") and serve as a fully featured mobile amateur radio station integrated with the My Chairiet wheelchair platform.
 
 The system provides:
 - Safe, automated CAT control of supported radios without triggering known hamlib bugs
@@ -74,29 +74,29 @@ All Python files must include a version number as a suffix in the filename.
 | OS | Raspberry Pi OS Trixie (Debian 13), booting from USB |
 | Python | 3.14.3 (built from source if not present) |
 | OpenSSL | 4.1 (built from source) |
-| Transceiver | Xiegu G90 (HF, 20W) |
+| Transceiver | See RADIOS list in settings |
 | Antenna | Hamstick mobile (balcony / mobile proven) |
-| G90 Connection | USB serial (appears as `/dev/ttyUSB0` or similar) |
-| G90 Baud Rate | 19200 |
-| G90 Protocol | CI-V compatible |
+| Radio Connection | USB serial (device path configured per radio) |
+| Radio Baud Rate | Configured per radio in RADIOS list |
+| Radio Protocol | Configured per radio model |
 | Power | LiFePO4 battery (wheelchair platform) |
 
-### 2.2 G90 Head Unit
+### 2.2 Radio Head Unit
 
-The G90 head unit is mounted on a wheelchair armrest and remains the primary manual control interface. The software system operates alongside it, not instead of it.
+The radio head unit remains the primary manual control interface. The software system operates alongside it, not instead of it.
 
 Control flow:
 ```
-G90 Head Unit <---> G90 Body <---> Ham System (Python / CAT)
-      |                                    |
- Manual Control                   Automated / Digital
+Radio Head Unit <---> Radio Body <---> Ham System (Python / CAT)
+       |                                      |
+  Manual Control                    Automated / Digital
 ```
 
 ### 2.3 Known Hardware Constraints
 
-- The G90 ACC port (DE-19) is available for auxiliary connections
-- Audio I/O is via the G90's USB audio interface or ACC port
-- Serial CAT control is via the G90's USB port
+- The radio ACC port (DE-19 or equivalent) is available for auxiliary connections
+- Audio I/O is via the radio's USB audio interface or ACC port
+- Serial CAT control is via the radio's USB port
 - The Pi 5 PCIe on "hammer" is confirmed good
 
 ### 2.4 Hardware Interface Configuration
@@ -116,12 +116,12 @@ Each radio instance has its own interface setting in `settings-v0.0.1.py`:
 RADIOS = [
     {
         "index":           1,
-        "name":            "Xiegu G90",
+        "name":            "Radio name here",
         "model":           "g90",
         "port":            "/dev/ttyUSB0",
         "baud":            19200,
         "audio_interface": "de19",
-        "audio_device":    "G90 Audio",
+        "audio_device":    "Radio audio device name",
     },
     # {
     #     "index":           2,
@@ -188,7 +188,7 @@ ham_system/
 
 ### 3.3 CAT Control Strategy
 
-The Ham System will use **direct `pyserial` communication** with supported radios using raw CAT commands (CI-V for the Xiegu G90). This completely bypasses hamlib and eliminates exposure to known hamlib bugs.
+The Ham System will use **direct `pyserial` communication** with supported radios using raw CAT commands appropriate for each radio model. This completely bypasses hamlib and eliminates exposure to known hamlib bugs.
 
 Each radio runs as a fully independent instance with its own:
 - CAT control thread (`rig_control` instance)
@@ -241,11 +241,11 @@ A subscriber can monitor all radios with `console/radio/#` or a single radio wit
 
 ### 4.1 Hamlib Hard-Transmit Bug
 
-**Symptom:** When hamlib is used to control the Xiegu G90, it causes the radio to enter a hard transmit state — keying the transmitter uncontrollably.
+**Symptom:** When hamlib is used to control certain radios, it causes the radio to enter a hard transmit state — keying the transmitter uncontrollably. This was discovered with the initial supported radio.
 
 **Effect:** Uncontrolled RF transmission. On a 20W radio operating on a balcony, this is a regulatory and safety hazard.
 
-**Root Cause:** Unknown. The bug appears to be in hamlib's G90 driver or its CI-V command sequencing. Scope of the issue (G90-specific vs. broader hamlib) has not been determined.
+**Root Cause:** Unknown. The bug appears to be in hamlib's radio driver or its CAT command sequencing. Whether this affects all radios or specific models has not been determined.
 
 **Workaround:** **hamlib is not used in this project under any circumstances.** All rig control is implemented via direct `pyserial` CI-V commands. This is a hard architectural constraint, not optional.
 
@@ -272,7 +272,7 @@ All system configuration is stored in a single versioned Python settings file (`
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `RADIOS` | List of radio config dicts — one entry per radio | `[{G90 entry}]` |
+| `RADIOS` | List of radio config dicts — one entry per radio | See settings file |
 | `RADIOS[n].index` | Radio index (1-based) — used in MQTT topics | `1` |
 | `RADIOS[n].port` | Serial port for CAT control | `/dev/ttyUSB0` |
 | `RADIOS[n].baud` | CAT baud rate | `19200` |
