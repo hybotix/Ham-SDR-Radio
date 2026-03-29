@@ -1,8 +1,7 @@
 # Ham System Design Document
 
-**Project:** Ham System — N7PKT Integrated Ham Radio Control Platform  
+**Project:** Ham System — Ham System Integrated Ham Radio Control Platform  
 **Platform:** Raspberry Pi 5 / 8GB RAM ("hammer")  
-**Callsign:** N7PKT  
 **Author:** Dale — Hybrid RobotiX / The Accessibility Files  
 **Status:** Pre-development — Design Phase  
 **Version:** 0.1 (Draft)
@@ -293,7 +292,7 @@ Configuration is read at runtime via Python's standard `json` module. All module
 | `WSJTX_UDP_PORT` | WSJT-X UDP interface port | `2237` |
 | `MQTT_HOST` | My Chairiet MQTT broker host | `localhost` |
 | `MQTT_PORT` | MQTT broker port | `1883` |
-| `CALLSIGN` | Station callsign | `N7PKT` |
+| `CALLSIGN` | Station callsign | *(set by user)* |
 | `GRID_SQUARE` | Maidenhead grid square | TBD |
 | `LOG_DB_PATH` | Path to QSO SQLite database | `./logs/qso_log.db` |
 | `APRS_ENABLE` | Enable APRS beaconing | `False` |
@@ -365,7 +364,7 @@ The APRS module provides automatic position beaconing over RF using the active r
 ### 7.2 Beacon Content
 
 Each beacon transmits:
-- Callsign: `N7PKT`
+- Callsign: configured by user in settings
 - Position: Derived from GPS or manually configured grid square
 - Symbol: Wheelchair / mobile station
 - Comment: Configurable — e.g. `Hybrid RobotiX Mobile Station`
@@ -524,5 +523,5 @@ The TX guard is tested exhaustively — it is safety-critical code. Tests cover:
 ---
 
 *Document is a living design artifact. Architecture evolves as development progresses.*  
-*— Dale, N7PKT — Hybrid RobotiX / The Accessibility Files*  
+*— Dale — Hybrid RobotiX / The Accessibility Files*  
 *"I. WILL. NEVER. GIVE. UP. OR. SURRENDER."*

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 init-v0.0.1.py — Ham System Initialization Script
-Project: Ham System — N7PKT Integrated Ham Radio Control Platform
+Project: Ham System — Ham System Integrated Ham Radio Control Platform
 Author:  Dale — Hybrid RobotiX / The Accessibility Files
 Version: 0.0.1
 
@@ -225,7 +225,7 @@ RADIO_PORT_CANDIDATES = [
 def banner():
     log.info("=" * 70)
     log.info("  Ham System Initialization Script")
-    log.info("  N7PKT Integrated Ham Radio Control Platform")
+    log.info("  Ham System Integrated Ham Radio Control Platform")
     log.info(f"  Version {VERSION}")
     log.info("  Hybrid RobotiX / The Accessibility Files")
     log.info("  I. WILL. NEVER. GIVE. UP. OR. SURRENDER.")
@@ -728,9 +728,9 @@ def verify_g90_port():
 
 DEFAULT_SETTINGS = {
     "_version": "0.0.1",
-    "_description": "Ham System Configuration — N7PKT Integrated Ham Radio Control Platform",
+    "_description": "Ham System Configuration — Ham System Integrated Ham Radio Control Platform",
     "operator": {
-        "callsign":    "N7PKT",
+        "callsign":    "YOUR_CALLSIGN",
         "grid_square": ""
     },
     "radios": [
