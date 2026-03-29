@@ -31,13 +31,14 @@ Safe to re-run — completed steps are automatically skipped.
 Aborts immediately with a clear error if any required build fails.
 NO bash or shell scripts. Python only.
 
-REQUIRED: Before running this script, /usr/local/bin MUST be first in PATH.
-          Add the following line to your shell RC file (~/.bashrc, ~/.zshrc,
-          or equivalent) and reload it before proceeding:
+REQUIRED: /usr/local/bin must appear in PATH before any system directories
+          (/usr/bin, /bin, etc.). User directories (~/bin, nvm, etc.) may
+          appear before it. Add this to your shell RC file if needed:
 
               export PATH=/usr/local/bin:$PATH
 
-          This script will abort if /usr/local/bin is not first in PATH.
+          Place this line AFTER any other PATH-modifying tools (nvm, etc.)
+          so it always wins over system directories.
 
 NOTE: This script may be initially invoked with the system Python to bootstrap
       the build. Once Python 3.14.3 is built and installed, re-invoke with it.
@@ -1091,21 +1092,38 @@ def offer_rc_edit(rc_path, shell_name):
 
 def check_path():
     """
-    Verify /usr/local/bin is first in PATH.
-    If not, detect the user's shell and offer to edit the RC file automatically.
-    Aborts with clear instructions to reload and re-run.
+    Verify /usr/local/bin appears in PATH before any system directories
+    (/usr/bin, /bin, etc.). Allows user directories (~/bin, nvm, etc.)
+    to appear first — only system dirs must come after /usr/local/bin.
+    If not satisfied, detect the user's shell and offer to edit the RC file.
     """
     log.info("")
     log.info("Pre-flight: Checking PATH configuration...")
     path_entries = os.environ.get("PATH", "").split(":")
 
-    if path_entries and path_entries[0] == "/usr/local/bin":
-        log.info("  /usr/local/bin is first in PATH — OK")
+    # System directories that must NOT appear before /usr/local/bin
+    system_dirs = {"/usr/bin", "/bin", "/usr/sbin", "/sbin"}
+
+    local_bin_idx = None
+    blocking_dir = None
+
+    for i, entry in enumerate(path_entries):
+        if entry == "/usr/local/bin":
+            local_bin_idx = i
+            break
+        if entry in system_dirs:
+            blocking_dir = entry
+            break
+
+    if local_bin_idx is not None:
+        log.info(f"  /usr/local/bin found at PATH position {local_bin_idx + 1} — OK")
         return
 
-    first = path_entries[0] if path_entries else "(empty)"
-    log.warning(f"  /usr/local/bin is NOT first in PATH (current first: {first})")
-    log.warning("  This is a required configuration for the Ham System.")
+    if blocking_dir:
+        log.warning(f"  /usr/local/bin is blocked by system directory '{blocking_dir}' in PATH")
+    else:
+        log.warning("  /usr/local/bin not found in PATH")
+    log.warning("  /usr/local/bin must appear before system directories in PATH.")
     log.info("")
 
     shell_name, rc_path = detect_shell_rc()
@@ -1114,7 +1132,7 @@ def check_path():
         edited = offer_rc_edit(rc_path, shell_name)
         if edited:
             abort(
-                "PATH updated. Reload your shell RC file and re-run this script:\n"
+                "PATH line added to RC file. Reload and re-run this script:\n"
                 f"      source {rc_path}\n"
                 f"      python3 init-v0.0.1.py"
             )
