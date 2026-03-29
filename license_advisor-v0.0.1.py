@@ -1,43 +1,40 @@
 #!/usr/bin/env python3
 """
-license_advisor-v0.0.1.py -- Ham System License Advisor
-Project: Ham System -- Integrated Ham Radio Control Platform
-Author:  Dale -- Hybrid RobotiX / The Accessibility Files
+license_advisor-v0.0.1.py — Ham System License Advisor
+Project: Ham System — Integrated Ham Radio Control Platform
+Author:  Dale — Hybrid RobotiX / The Accessibility Files
 Version: 0.0.1
 
-Looks up the operator's amateur radio license from the appropriate
-licensing authority database and caches the result. Provides privilege
-awareness to help operators stay within their legal limits.
+Validates the operator's amateur radio license against the appropriate
+licensing authority database. This is the FIRST step in initialization —
+if the callsign cannot be verified, nothing else proceeds.
 
-PHILOSOPHY:
-  This is a helper, not a gatekeeper.
-  The operator is ALWAYS the responsible party.
-  This system NEVER blocks any operation.
-  It WARNS clearly when an action may exceed known privileges.
-  Warnings are informational only -- the operator may proceed.
+Philosophy:
+  - This is a HELPER, not a gatekeeper
+  - The operator is ALWAYS the responsible party
+  - The system WARNS but NEVER BLOCKS based on license class
+  - Warnings are informational only
 
 Supported authorities:
-  FCC   (US)     -- Live API via callook.info
-  ISED  (Canada) -- Local cache from ISED database ZIP
-  Ofcom (UK)     -- Local cache from Ofcom open data
+  - FCC   (US)     — Live API via callook.info
+  - ISED  (Canada) — Local cache from ISED database ZIP
+  - Ofcom (UK)     — Local cache from Ofcom open data
 
 Usage:
-  python3 license_advisor-v0.0.1.py <CALLSIGN>
-  python3 license_advisor-v0.0.1.py --refresh <CALLSIGN>
+  python3 license_advisor-v0.0.1.py --callsign YOURCALL
+  python3 license_advisor-v0.0.1.py --callsign YOURCALL --refresh
 """
 
 VERSION = "0.0.1"
 
 import sys
 import json
-import re
+import argparse
+import logging
 import urllib.request
 import urllib.error
-import zipfile
-import io
-import logging
+from datetime import datetime, timezone
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -54,53 +51,21 @@ log = logging.getLogger("license_advisor")
 # Constants
 # ---------------------------------------------------------------------------
 
-CONFIG_DIR          = Path("config")
-CACHE_PATH          = CONFIG_DIR / "license_cache-v0.0.1.json"
-SETTINGS_PATH       = CONFIG_DIR / "settings-v0.0.1.json"
+CONFIG_DIR         = Path("config")
+CACHE_PATH         = CONFIG_DIR / "license_cache-v0.0.1.json"
+ISED_CACHE_PATH    = CONFIG_DIR / "ised_db-v0.0.1.txt"
+OFCOM_CACHE_PATH   = CONFIG_DIR / "ofcom_db-v0.0.1.csv"
 
-CALLOOK_URL         = "https://callook.info/{callsign}/json"
-ISED_ZIP_URL        = "https://apc-cap.ic.gc.ca/datafiles/amateur.zip"
-ISED_CACHE_PATH     = CONFIG_DIR / "ised_cache-v0.0.1.json"
-OFCOM_CACHE_PATH    = CONFIG_DIR / "ofcom_cache-v0.0.1.json"
+CALLOOK_API        = "https://callook.info/{callsign}/json"
+ISED_DB_URL        = "https://apc-cap.ic.gc.ca/datafiles/amateur.zip"
+CACHE_MAX_AGE_DAYS = 7
 
-CACHE_MAX_AGE_DAYS  = 1     # Live API cache refresh interval
-DB_MAX_AGE_DAYS     = 7     # ISED/Ofcom local DB refresh interval
-REQUEST_TIMEOUT     = 10    # HTTP timeout in seconds
+# Callsign prefix → authority mapping
+FCC_PREFIXES   = ("A", "K", "N", "W")
+ISED_PREFIXES  = ("VE", "VA", "VY", "VO", "VB", "VC", "VG", "VX")
+OFCOM_PREFIXES = ("G", "M", "2E", "2I", "2W", "2D", "2U")
 
-# ---------------------------------------------------------------------------
-# Callsign prefix -> authority detection
-# ---------------------------------------------------------------------------
-
-# US FCC prefixes (W, K, N, A + single digit + suffix)
-FCC_PREFIXES    = re.compile(r"^[WKNA]\d", re.IGNORECASE)
-
-# Canadian ISED prefixes
-ISED_PREFIXES   = re.compile(r"^(VE|VA|VY|VO)\d", re.IGNORECASE)
-
-# UK Ofcom prefixes
-OFCOM_PREFIXES  = re.compile(r"^(G|M|2[EIWDJU])\d", re.IGNORECASE)
-
-
-def detect_authority(callsign: str) -> str:
-    """
-    Detect the licensing authority from the callsign prefix.
-    Returns 'FCC', 'ISED', 'OFCOM', or 'UNKNOWN'.
-    """
-    cs = callsign.upper().strip()
-    if FCC_PREFIXES.match(cs):
-        return "FCC"
-    if ISED_PREFIXES.match(cs):
-        return "ISED"
-    if OFCOM_PREFIXES.match(cs):
-        return "OFCOM"
-    return "UNKNOWN"
-
-
-# ---------------------------------------------------------------------------
-# FCC lookup via callook.info
-# ---------------------------------------------------------------------------
-
-# FCC operator class codes from callook.info -> human readable
+# FCC operator class codes → human readable
 FCC_CLASS_MAP = {
     "T":  "Technician",
     "G":  "General",
@@ -110,428 +75,344 @@ FCC_CLASS_MAP = {
     "P":  "Technician Plus",
 }
 
-# Privilege profiles by license class
-FCC_PRIVILEGES = {
-    "Technician": {
-        "hf_bands":    ["10m"],
-        "hf_phone":    False,
-        "hf_cw":       True,
-        "hf_digital":  True,
-        "vhf_uhf":     True,
-        "max_power_w": 200,
-        "notes":       "HF limited to 10M CW/digital/SSB above 28.300 MHz. Full VHF/UHF.",
-    },
-    "General": {
-        "hf_bands":    ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m"],
-        "hf_phone":    True,
-        "hf_cw":       True,
-        "hf_digital":  True,
-        "vhf_uhf":     True,
-        "max_power_w": 1500,
-        "notes":       "HF with some band segment restrictions. Full VHF/UHF.",
-    },
-    "Advanced": {
-        "hf_bands":    ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m"],
-        "hf_phone":    True,
-        "hf_cw":       True,
-        "hf_digital":  True,
-        "vhf_uhf":     True,
-        "max_power_w": 1500,
-        "notes":       "Similar to General with some expanded HF segments.",
-    },
-    "Amateur Extra": {
-        "hf_bands":    ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m"],
-        "hf_phone":    True,
-        "hf_cw":       True,
-        "hf_digital":  True,
-        "vhf_uhf":     True,
-        "max_power_w": 1500,
-        "notes":       "Full HF privileges on all amateur bands.",
-    },
-    "Novice": {
-        "hf_bands":    ["80m", "40m", "15m", "10m"],
-        "hf_phone":    False,
-        "hf_cw":       True,
-        "hf_digital":  False,
-        "vhf_uhf":     True,
-        "max_power_w": 200,
-        "notes":       "CW only on limited HF bands. Some VHF.",
-    },
-}
+# ---------------------------------------------------------------------------
+# Authority detection
+# ---------------------------------------------------------------------------
 
+def detect_authority(callsign: str) -> str:
+    """
+    Determine licensing authority from callsign prefix.
+    Returns 'FCC', 'ISED', 'OFCOM', or 'UNKNOWN'.
+    """
+    cs = callsign.upper().strip()
+
+    for prefix in ISED_PREFIXES:
+        if cs.startswith(prefix):
+            return "ISED"
+
+    for prefix in OFCOM_PREFIXES:
+        if cs.startswith(prefix):
+            return "OFCOM"
+
+    for prefix in FCC_PREFIXES:
+        if cs.startswith(prefix):
+            return "FCC"
+
+    return "UNKNOWN"
+
+
+# ---------------------------------------------------------------------------
+# FCC lookup via callook.info
+# ---------------------------------------------------------------------------
 
 def lookup_fcc(callsign: str) -> dict:
     """
-    Look up a US callsign via the callook.info API.
-    Returns a normalized license record dict.
+    Query callook.info for FCC callsign data.
+    Returns a normalized license dict or raises an exception.
     """
-    url = CALLOOK_URL.format(callsign=callsign.upper())
+    url = CALLOOK_API.format(callsign=callsign.upper())
     log.info(f"  Querying callook.info for {callsign.upper()}...")
 
     try:
-        with urllib.request.urlopen(url, timeout=REQUEST_TIMEOUT) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": f"HamSystem/{VERSION} license_advisor"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
     except urllib.error.URLError as e:
-        log.warning(f"  callook.info query failed: {e}")
-        return None
+        raise ConnectionError(f"callook.info unreachable: {e}")
     except json.JSONDecodeError as e:
-        log.warning(f"  callook.info returned invalid JSON: {e}")
-        return None
+        raise ValueError(f"Invalid JSON from callook.info: {e}")
 
-    status = data.get("status", "UNKNOWN")
-    if status not in ("VALID", "INVALID"):
-        log.warning(f"  callook.info returned status: {status}")
-        return None
+    status = data.get("status", "").upper()
 
-    current = data.get("current", {})
-    other   = data.get("otherInfo", {})
-    loc     = data.get("location", {})
+    if status == "INVALID":
+        return {
+            "found":         False,
+            "callsign":      callsign.upper(),
+            "authority":     "FCC",
+            "status":        "NOT_FOUND",
+            "license_class": None,
+            "expiry":        None,
+            "grid_square":   None,
+            "name":          None,
+        }
 
-    raw_class    = current.get("operClass", "")
+    if status == "UPDATING":
+        raise ConnectionError(
+            "callook.info is currently updating its database (usually < 5 min). "
+            "Please try again shortly."
+        )
+
+    raw_class = data.get("current", {}).get("operClass", "")
     license_class = FCC_CLASS_MAP.get(raw_class, raw_class or "Unknown")
-    privileges   = FCC_PRIVILEGES.get(license_class, {})
 
-    return {
-        "callsign":       current.get("callsign", callsign.upper()),
-        "authority":      "FCC",
-        "license_class":  license_class,
-        "status":         status,
-        "expiry":         other.get("expiryDate", ""),
-        "grid_square":    loc.get("gridsquare", ""),
-        "last_verified":  datetime.now(timezone.utc).isoformat(),
-        "privileges":     privileges,
-        "raw":            data,
-    }
+    expiry = data.get("otherInfo", {}).get("expiryDate", "")
+    grid   = data.get("location", {}).get("gridsquare", "")
+    name   = data.get("name", "")
 
-
-# ---------------------------------------------------------------------------
-# Canada ISED lookup (local cache)
-# ---------------------------------------------------------------------------
-
-ISED_CLASS_MAP = {
-    "A": "Advanced",
-    "B": "Basic",
-    "H": "Basic with Honours",
-}
-
-ISED_PRIVILEGES = {
-    "Basic": {
-        "hf_bands":    ["80m", "40m", "20m", "15m", "10m"],
-        "hf_phone":    True,
-        "hf_cw":       True,
-        "hf_digital":  True,
-        "vhf_uhf":     True,
-        "max_power_w": 250,
-        "notes":       "Basic privileges. HF with restrictions.",
-    },
-    "Basic with Honours": {
-        "hf_bands":    ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m"],
-        "hf_phone":    True,
-        "hf_cw":       True,
-        "hf_digital":  True,
-        "vhf_uhf":     True,
-        "max_power_w": 1000,
-        "notes":       "Full HF privileges below 30 MHz.",
-    },
-    "Advanced": {
-        "hf_bands":    ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m"],
-        "hf_phone":    True,
-        "hf_cw":       True,
-        "hf_digital":  True,
-        "vhf_uhf":     True,
-        "max_power_w": 1000,
-        "notes":       "Full privileges including building transmitters.",
-    },
-}
-
-
-def refresh_ised_cache() -> bool:
-    """Download and cache the ISED amateur database."""
-    log.info("  Downloading ISED amateur database...")
-    try:
-        with urllib.request.urlopen(ISED_ZIP_URL, timeout=30) as resp:
-            zip_data = resp.read()
-    except urllib.error.URLError as e:
-        log.warning(f"  ISED download failed: {e}")
-        return False
-
-    try:
-        with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
-            # Find the amateur data file inside the ZIP
-            names = zf.namelist()
-            data_file = next((n for n in names if n.lower().endswith(".txt")), None)
-            if not data_file:
-                log.warning("  No .txt file found in ISED ZIP")
-                return False
-            raw = zf.read(data_file).decode("latin-1")
-    except Exception as e:
-        log.warning(f"  ISED ZIP extraction failed: {e}")
-        return False
-
-    # Parse the ISED data file into a dict keyed by callsign
-    db = {}
-    for line in raw.splitlines():
-        parts = line.split(",")
-        if len(parts) < 5:
-            continue
-        callsign = parts[0].strip().upper()
-        if callsign:
-            db[callsign] = {
-                "callsign": callsign,
-                "name":     parts[1].strip() if len(parts) > 1 else "",
-                "class":    parts[4].strip() if len(parts) > 4 else "",
-            }
-
-    cache = {
-        "downloaded": datetime.now(timezone.utc).isoformat(),
-        "records":    db,
-    }
-    CONFIG_DIR.mkdir(exist_ok=True)
-    ISED_CACHE_PATH.write_text(json.dumps(cache))
-    log.info(f"  ISED cache saved — {len(db)} records")
-    return True
-
-
-def lookup_ised(callsign: str) -> dict:
-    """Look up a Canadian callsign in the local ISED cache."""
-    # Refresh cache if missing or stale
-    needs_refresh = True
-    if ISED_CACHE_PATH.exists():
+    # Check expiry
+    license_status = "VALID"
+    if expiry:
         try:
-            cache = json.loads(ISED_CACHE_PATH.read_text())
-            downloaded = datetime.fromisoformat(cache.get("downloaded", "2000-01-01T00:00:00+00:00"))
-            age = datetime.now(timezone.utc) - downloaded
-            if age < timedelta(days=DB_MAX_AGE_DAYS):
-                needs_refresh = False
-        except Exception:
+            exp_date = datetime.strptime(expiry, "%m/%d/%Y").date()
+            if exp_date < datetime.now(timezone.utc).date():
+                license_status = "EXPIRED"
+        except ValueError:
             pass
 
-    if needs_refresh:
-        if not refresh_ised_cache():
-            log.warning("  ISED cache unavailable — cannot verify Canadian callsign")
-            return None
-
-    try:
-        cache = json.loads(ISED_CACHE_PATH.read_text())
-        records = cache.get("records", {})
-    except Exception as e:
-        log.warning(f"  Failed to read ISED cache: {e}")
-        return None
-
-    record = records.get(callsign.upper())
-    if not record:
-        log.warning(f"  {callsign.upper()} not found in ISED database")
-        return None
-
-    raw_class     = record.get("class", "")
-    license_class = ISED_CLASS_MAP.get(raw_class, raw_class or "Basic")
-    privileges    = ISED_PRIVILEGES.get(license_class, ISED_PRIVILEGES["Basic"])
-
     return {
+        "found":         True,
         "callsign":      callsign.upper(),
-        "authority":     "ISED",
+        "authority":     "FCC",
+        "status":        license_status,
         "license_class": license_class,
-        "status":        "VALID",
-        "expiry":        "",
-        "grid_square":   "",
-        "last_verified": datetime.now(timezone.utc).isoformat(),
-        "privileges":    privileges,
+        "expiry":        expiry,
+        "grid_square":   grid,
+        "name":          name,
     }
 
 
 # ---------------------------------------------------------------------------
-# UK Ofcom lookup (local cache)
+# ISED (Canada) lookup
 # ---------------------------------------------------------------------------
 
-OFCOM_PRIVILEGES = {
-    "Foundation": {
-        "hf_bands":    ["10m"],
-        "hf_phone":    True,
-        "hf_cw":       True,
-        "hf_digital":  True,
-        "vhf_uhf":     True,
-        "max_power_w": 10,
-        "notes":       "Limited bands, 10W maximum power.",
-    },
-    "Intermediate": {
-        "hf_bands":    ["80m", "40m", "20m", "15m", "10m"],
-        "hf_phone":    True,
-        "hf_cw":       True,
-        "hf_digital":  True,
-        "vhf_uhf":     True,
-        "max_power_w": 50,
-        "notes":       "Extended band access, 50W maximum power.",
-    },
-    "Full": {
-        "hf_bands":    ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m"],
-        "hf_phone":    True,
-        "hf_cw":       True,
-        "hf_digital":  True,
-        "vhf_uhf":     True,
-        "max_power_w": 400,
-        "notes":       "Full privileges on all amateur bands.",
-    },
-}
+def lookup_ised(callsign: str) -> dict:
+    """
+    Look up a Canadian callsign from the locally cached ISED database.
+    Downloads and caches the database if not present or stale.
+    """
+    import zipfile
+    import io
 
+    cs = callsign.upper().strip()
+
+    # Download/refresh cache if needed
+    if not ISED_CACHE_PATH.exists() or _cache_stale(ISED_CACHE_PATH):
+        log.info("  Downloading ISED amateur radio database...")
+        try:
+            req = urllib.request.Request(
+                ISED_DB_URL,
+                headers={"User-Agent": f"HamSystem/{VERSION} license_advisor"}
+            )
+            with urllib.request.urlopen(req, timeout=30) as response:
+                zip_data = response.read()
+            with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
+                # The ZIP contains a text file — extract the first .txt file
+                txt_files = [f for f in zf.namelist() if f.endswith(".txt") or f.endswith(".TXT")]
+                if not txt_files:
+                    raise ValueError("No text file found in ISED ZIP")
+                content = zf.read(txt_files[0]).decode("latin-1")
+            CONFIG_DIR.mkdir(exist_ok=True)
+            ISED_CACHE_PATH.write_text(content, encoding="utf-8")
+            log.info(f"  ISED database cached at {ISED_CACHE_PATH}")
+        except Exception as e:
+            if ISED_CACHE_PATH.exists():
+                log.warning(f"  Could not refresh ISED database: {e} — using stale cache")
+            else:
+                raise ConnectionError(f"Could not download ISED database: {e}")
+
+    # Search the cached database
+    log.info(f"  Searching ISED database for {cs}...")
+    db_text = ISED_CACHE_PATH.read_text(encoding="utf-8")
+
+    for line in db_text.splitlines():
+        if cs in line.upper():
+            # ISED format is pipe or comma delimited — parse basic fields
+            parts = line.split("|") if "|" in line else line.split(",")
+            if len(parts) >= 3:
+                return {
+                    "found":         True,
+                    "callsign":      cs,
+                    "authority":     "ISED",
+                    "status":        "VALID",
+                    "license_class": parts[2].strip() if len(parts) > 2 else "Unknown",
+                    "expiry":        None,
+                    "grid_square":   None,
+                    "name":          parts[1].strip() if len(parts) > 1 else None,
+                }
+
+    return {
+        "found":         False,
+        "callsign":      cs,
+        "authority":     "ISED",
+        "status":        "NOT_FOUND",
+        "license_class": None,
+        "expiry":        None,
+        "grid_square":   None,
+        "name":          None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Ofcom (UK) lookup
+# ---------------------------------------------------------------------------
 
 def lookup_ofcom(callsign: str) -> dict:
     """
-    Look up a UK callsign. Ofcom does not provide a live API.
-    License class is inferred from callsign prefix structure.
-    Foundation: 2E0xxx, 2W0xxx, M6xxx, 2E1xxx
-    Intermediate: 2E0xxx (post-2003), M3xxx, M6xxx
-    Full: G, M0, M1, M5, GW, GI, GM, GD etc.
-    This is an approximation -- Ofcom open data is used where cached.
+    Look up a UK callsign from locally cached Ofcom open data.
+    UK callsign prefix encodes the license class directly, so class can
+    be inferred without a full database lookup if needed.
     """
     cs = callsign.upper().strip()
 
-    # Infer class from callsign structure
-    if re.match(r"^M6", cs) or re.match(r"^2E", cs) or re.match(r"^2W", cs):
-        license_class = "Foundation"
-    elif re.match(r"^M3", cs) or re.match(r"^2I", cs):
-        license_class = "Intermediate"
-    else:
-        license_class = "Full"
+    # Infer class from callsign structure as fallback
+    # Full: G, M prefix with 3-letter suffix e.g. G4xxx, M0xxx
+    # Intermediate: 2E prefix e.g. 2E0xxx
+    # Foundation: M3, M6 prefix
+    inferred_class = _infer_ofcom_class(cs)
 
-    privileges = OFCOM_PRIVILEGES.get(license_class, OFCOM_PRIVILEGES["Full"])
-
-    log.info(f"  UK callsign {cs} -- inferred class: {license_class}")
-    log.info("  NOTE: Ofcom does not provide a live API. Class inferred from callsign prefix.")
-
-    return {
-        "callsign":      cs,
-        "authority":     "OFCOM",
-        "license_class": license_class,
-        "status":        "VALID",
-        "expiry":        "",
-        "grid_square":   "",
-        "last_verified": datetime.now(timezone.utc).isoformat(),
-        "privileges":    privileges,
-        "notes":         "License class inferred from callsign prefix. Manual verification recommended.",
-    }
-
-
-# ---------------------------------------------------------------------------
-# Main lookup dispatcher
-# ---------------------------------------------------------------------------
-
-def lookup_license(callsign: str, force_refresh: bool = False) -> dict:
-    """
-    Look up a callsign and return a license record.
-    Uses cached result if available and not stale.
-    Returns None if lookup fails.
-    """
-    cs = callsign.upper().strip()
-
-    # Check cache first
-    if not force_refresh and CACHE_PATH.exists():
+    # If we have a cached Ofcom database, search it
+    if OFCOM_CACHE_PATH.exists() and not _cache_stale(OFCOM_CACHE_PATH):
+        log.info(f"  Searching Ofcom database for {cs}...")
         try:
-            cached = json.loads(CACHE_PATH.read_text())
-            if cached.get("callsign", "").upper() == cs:
-                verified = datetime.fromisoformat(cached.get("last_verified", "2000-01-01T00:00:00+00:00"))
-                age = datetime.now(timezone.utc) - verified
-                if age < timedelta(days=CACHE_MAX_AGE_DAYS):
-                    log.info(f"  Using cached license data for {cs} (age: {age.seconds // 3600}h)")
-                    return cached
+            db_text = OFCOM_CACHE_PATH.read_text(encoding="utf-8")
+            for line in db_text.splitlines():
+                if cs in line.upper():
+                    return {
+                        "found":         True,
+                        "callsign":      cs,
+                        "authority":     "OFCOM",
+                        "status":        "VALID",
+                        "license_class": inferred_class,
+                        "expiry":        None,
+                        "grid_square":   None,
+                        "name":          None,
+                    }
         except Exception:
             pass
 
-    # Detect authority
-    authority = detect_authority(cs)
-    log.info(f"  Callsign: {cs}  Authority: {authority}")
+    # Fall back to prefix-based inference
+    if inferred_class:
+        log.info(f"  UK callsign {cs} — class inferred from prefix: {inferred_class}")
+        log.warning("  Note: Ofcom database not cached — class inferred from callsign prefix only.")
+        log.warning("  Run with --refresh to download the Ofcom database for full verification.")
+        return {
+            "found":         True,
+            "callsign":      cs,
+            "authority":     "OFCOM",
+            "status":        "INFERRED",
+            "license_class": inferred_class,
+            "expiry":        None,
+            "grid_square":   None,
+            "name":          None,
+        }
 
-    if authority == "FCC":
-        record = lookup_fcc(cs)
-    elif authority == "ISED":
-        record = lookup_ised(cs)
-    elif authority == "OFCOM":
-        record = lookup_ofcom(cs)
-    else:
-        log.warning(f"  Unknown callsign prefix — cannot determine licensing authority for {cs}")
-        return None
-
-    if record:
-        CONFIG_DIR.mkdir(exist_ok=True)
-        CACHE_PATH.write_text(json.dumps(record, indent=4))
-        log.info(f"  License cache saved to {CACHE_PATH}")
-
-    return record
-
-
-# ---------------------------------------------------------------------------
-# Display
-# ---------------------------------------------------------------------------
-
-def display_license(record: dict):
-    """Print a formatted license summary."""
-    print()
-    print("=" * 60)
-    print("  License Advisor — License Summary")
-    print("=" * 60)
-    print(f"  Callsign      : {record.get('callsign', 'N/A')}")
-    print(f"  Authority     : {record.get('authority', 'N/A')}")
-    print(f"  License Class : {record.get('license_class', 'N/A')}")
-    print(f"  Status        : {record.get('status', 'N/A')}")
-    if record.get("expiry"):
-        print(f"  Expiry        : {record.get('expiry')}")
-    if record.get("grid_square"):
-        print(f"  Grid Square   : {record.get('grid_square')}")
-    print(f"  Last Verified : {record.get('last_verified', 'N/A')}")
-    print()
-
-    priv = record.get("privileges", {})
-    if priv:
-        print("  Privileges:")
-        bands = priv.get("hf_bands", [])
-        print(f"    HF Bands    : {', '.join(bands) if bands else 'None'}")
-        print(f"    HF Phone    : {'Yes' if priv.get('hf_phone') else 'No'}")
-        print(f"    HF CW       : {'Yes' if priv.get('hf_cw') else 'No'}")
-        print(f"    HF Digital  : {'Yes' if priv.get('hf_digital') else 'No'}")
-        print(f"    VHF/UHF     : {'Yes' if priv.get('vhf_uhf') else 'No'}")
-        print(f"    Max Power   : {priv.get('max_power_w', 'N/A')}W")
-        if priv.get("notes"):
-            print(f"    Notes       : {priv.get('notes')}")
-
-    if record.get("notes"):
-        print()
-        print(f"  NOTE: {record.get('notes')}")
-
-    print()
-    print("  I. WILL. NEVER. GIVE. UP. OR. SURRENDER.")
-    print("=" * 60)
-    print()
+    return {
+        "found":         False,
+        "callsign":      cs,
+        "authority":     "OFCOM",
+        "status":        "NOT_FOUND",
+        "license_class": None,
+        "expiry":        None,
+        "grid_square":   None,
+        "name":          None,
+    }
 
 
-# ---------------------------------------------------------------------------
-# Settings integration
-# ---------------------------------------------------------------------------
-
-def get_callsign_from_settings() -> str:
-    """Read callsign from settings file if present."""
-    if not SETTINGS_PATH.exists():
-        return None
-    try:
-        settings = json.loads(SETTINGS_PATH.read_text())
-        cs = settings.get("operator", {}).get("callsign", "")
-        if cs and cs != "YOUR_CALLSIGN":
-            return cs
-    except Exception:
-        pass
+def _infer_ofcom_class(callsign: str) -> str:
+    """Infer UK license class from callsign prefix structure."""
+    cs = callsign.upper()
+    if cs.startswith("M3") or cs.startswith("M6"):
+        return "Foundation"
+    if cs.startswith("2E") or cs.startswith("2I") or cs.startswith("2W") or cs.startswith("2D"):
+        return "Intermediate"
+    if cs.startswith(("G", "M", "GW", "GM", "GI", "GD", "GU", "GJ")):
+        return "Full"
     return None
 
 
-def update_settings_gridsquare(grid_square: str):
-    """Update grid square in settings from license lookup if not already set."""
-    if not SETTINGS_PATH.exists() or not grid_square:
-        return
+# ---------------------------------------------------------------------------
+# Cache utilities
+# ---------------------------------------------------------------------------
+
+def _cache_stale(path: Path) -> bool:
+    """Return True if the cache file is older than CACHE_MAX_AGE_DAYS."""
+    from datetime import timedelta
+    mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    age = datetime.now(timezone.utc) - mtime
+    return age > timedelta(days=CACHE_MAX_AGE_DAYS)
+
+
+def save_cache(result: dict):
+    """Save license lookup result to cache file."""
+    CONFIG_DIR.mkdir(exist_ok=True)
+    result["last_verified"] = datetime.now(timezone.utc).isoformat()
+    CACHE_PATH.write_text(json.dumps(result, indent=4) + "\n")
+    log.info(f"  License data cached at {CACHE_PATH}")
+
+
+def load_cache() -> dict:
+    """Load cached license data. Returns None if not present."""
+    if not CACHE_PATH.exists():
+        return None
     try:
-        settings = json.loads(SETTINGS_PATH.read_text())
-        if not settings.get("operator", {}).get("grid_square"):
-            settings["operator"]["grid_square"] = grid_square
-            SETTINGS_PATH.write_text(json.dumps(settings, indent=4) + "\n")
-            log.info(f"  Grid square {grid_square} saved to settings")
-    except Exception as e:
-        log.warning(f"  Could not update grid square in settings: {e}")
+        return json.loads(CACHE_PATH.read_text())
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Main lookup entry point
+# ---------------------------------------------------------------------------
+
+def validate_license(callsign: str, refresh: bool = False) -> dict:
+    """
+    Validate a callsign against the appropriate licensing authority.
+    Returns a license result dict. Aborts with sys.exit(1) if not found.
+    """
+    cs = callsign.upper().strip()
+
+    # Check cache first unless refresh requested
+    if not refresh:
+        cached = load_cache()
+        if cached and cached.get("callsign") == cs:
+            age_note = ""
+            if _cache_stale(CACHE_PATH):
+                age_note = " (cache is stale — run with --refresh to update)"
+            log.info(f"  Using cached license data for {cs}{age_note}")
+            return cached
+
+    authority = detect_authority(cs)
+    log.info(f"  Callsign: {cs}")
+    log.info(f"  Detected authority: {authority}")
+
+    if authority == "UNKNOWN":
+        log.warning(f"  Could not determine licensing authority for '{cs}'.")
+        log.warning("  Callsign prefix not recognized as FCC, ISED, or Ofcom.")
+        log.warning("  If this is a valid callsign, please report it as an issue.")
+        sys.exit(1)
+
+    # Perform lookup
+    if authority == "FCC":
+        result = lookup_fcc(cs)
+    elif authority == "ISED":
+        result = lookup_ised(cs)
+    elif authority == "OFCOM":
+        result = lookup_ofcom(cs)
+
+    return result
+
+
+def print_result(result: dict):
+    """Display license lookup result to the operator."""
+    log.info("")
+    log.info("  ── License Verification Result ──────────────────────────────")
+    log.info(f"  Callsign      : {result.get('callsign', 'N/A')}")
+    log.info(f"  Authority     : {result.get('authority', 'N/A')}")
+    log.info(f"  Status        : {result.get('status', 'N/A')}")
+    log.info(f"  License Class : {result.get('license_class', 'N/A')}")
+    if result.get('name'):
+        log.info(f"  Name          : {result.get('name')}")
+    if result.get('expiry'):
+        log.info(f"  Expiry        : {result.get('expiry')}")
+    if result.get('grid_square'):
+        log.info(f"  Grid Square   : {result.get('grid_square')}")
+    if result.get('status') == "INFERRED":
+        log.warning("  NOTE: Class inferred from callsign prefix — not verified against database.")
+    log.info("  ─────────────────────────────────────────────────────────────")
+    log.info("")
 
 
 # ---------------------------------------------------------------------------
@@ -539,44 +420,60 @@ def update_settings_gridsquare(grid_square: str):
 # ---------------------------------------------------------------------------
 
 def main():
-    print("=" * 60)
-    print("  Ham System License Advisor")
-    print(f"  Version {VERSION}")
-    print("  Hybrid RobotiX / The Accessibility Files")
-    print("=" * 60)
-    print()
+    parser = argparse.ArgumentParser(
+        description="Ham System License Advisor — validate callsign and license class"
+    )
+    parser.add_argument(
+        "--callsign", "-c",
+        required=True,
+        help="Amateur radio callsign to validate"
+    )
+    parser.add_argument(
+        "--refresh", "-r",
+        action="store_true",
+        help="Force refresh — bypass cache and re-query authority"
+    )
+    args = parser.parse_args()
 
-    force_refresh = "--refresh" in sys.argv
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    log.info("=" * 70)
+    log.info("  Ham System License Advisor")
+    log.info(f"  Version {VERSION}")
+    log.info("  Hybrid RobotiX / The Accessibility Files")
+    log.info("=" * 70)
+    log.info("")
+    log.info("Step 0: Validating license...")
 
-    # Get callsign from args or settings
-    if args:
-        callsign = args[0]
-    else:
-        callsign = get_callsign_from_settings()
-        if not callsign:
-            print("Usage: python3 license_advisor-v0.0.1.py <CALLSIGN>")
-            print("       python3 license_advisor-v0.0.1.py --refresh <CALLSIGN>")
-            print()
-            print("Or set your callsign in config/settings-v0.0.1.json")
-            sys.exit(1)
-
-    log.info(f"Looking up license for: {callsign.upper()}")
-    if force_refresh:
-        log.info("Force refresh requested -- bypassing cache")
-
-    record = lookup_license(callsign, force_refresh=force_refresh)
-
-    if not record:
-        print(f"ERROR: Could not retrieve license data for {callsign.upper()}")
-        print("  Check your callsign and network connection.")
+    try:
+        result = validate_license(args.callsign, refresh=args.refresh)
+    except ConnectionError as e:
+        log.error(f"  Network error: {e}")
+        log.error("  Cannot validate license — check network connection.")
+        sys.exit(1)
+    except Exception as e:
+        log.error(f"  Unexpected error during license lookup: {e}")
         sys.exit(1)
 
-    display_license(record)
+    print_result(result)
 
-    # Auto-populate grid square in settings if available
-    if record.get("grid_square"):
-        update_settings_gridsquare(record["grid_square"])
+    if not result.get("found"):
+        log.error(f"  CALLSIGN '{args.callsign.upper()}' NOT FOUND in {result.get('authority')} database.")
+        log.error("  Please verify your callsign and try again.")
+        log.error("  Initialization cannot proceed without a valid license.")
+        sys.exit(1)
+
+    if result.get("status") == "EXPIRED":
+        log.warning(f"  WARNING: License for {result['callsign']} appears to be EXPIRED.")
+        log.warning(f"  Expiry date: {result.get('expiry')}")
+        log.warning("  Please renew your license. Proceeding with initialization.")
+        log.warning("  The Ham System will warn you during operation.")
+
+    # Save to cache
+    save_cache(result)
+
+    log.info(f"  License validated: {result['callsign']} — "
+             f"{result.get('license_class', 'Unknown')} ({result.get('authority')})")
+    log.info("  Initialization may proceed.")
+    return result
 
 
 if __name__ == "__main__":

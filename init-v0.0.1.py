@@ -7,6 +7,7 @@ Version: 0.0.1
 
 This script handles:
   Pre-flight — Verify Debian-based platform (dpkg required)
+  Pre-flight — Validate operator license (MUST pass before anything else)
   Step 0 — Install required system build dependencies via apt
   Step 1 — Check/build OpenSSL 3.4.x from source
   Step 2 — Check/build Python 3.14.3 from source
@@ -333,6 +334,62 @@ def check_platform():
     name = os_release.get("PRETTY_NAME", "Unknown Debian-based system")
     log.info(f"  Platform: {name} — OK")
 
+
+
+def validate_operator_license():
+    """
+    Validate the operator's callsign before any installation proceeds.
+    Prompts for callsign if not already in settings, then invokes
+    license_advisor-v0.0.1.py to verify against the appropriate authority.
+    Aborts if the callsign is not found.
+    """
+    log.info("")
+    log.info("Pre-flight: Validating operator license...")
+
+    # Check if callsign is already configured
+    callsign = None
+    if SETTINGS_PATH.exists():
+        try:
+            settings = json.loads(SETTINGS_PATH.read_text())
+            callsign = settings.get("operator", {}).get("callsign", "").strip()
+            if callsign and callsign != "YOUR_CALLSIGN":
+                log.info(f"  Using callsign from settings: {callsign}")
+            else:
+                callsign = None
+        except Exception:
+            callsign = None
+
+    if not callsign:
+        log.info("  No callsign configured yet.")
+        try:
+            callsign = input("  Enter your amateur radio callsign: ").strip().upper()
+        except (EOFError, KeyboardInterrupt):
+            log.info("")
+            abort("License validation cancelled.")
+
+    if not callsign:
+        abort("A valid callsign is required to proceed.")
+
+    # Invoke license_advisor
+    advisor = Path(__file__).resolve().parent / "license_advisor-v0.0.1.py"
+    if not advisor.exists():
+        abort(
+            f"license_advisor-v0.0.1.py not found at {advisor}.\n"
+            "  Cannot validate license. Ensure the file is present and re-run."
+        )
+
+    log.info(f"  Validating callsign: {callsign}")
+    result = subprocess.run(
+        [sys.executable, str(advisor), "--callsign", callsign],
+        capture_output=False,  # Let output stream to console
+        text=True,
+    )
+    if result.returncode != 0:
+        abort(
+            f"License validation failed for callsign '{callsign}'.\n"
+            "  Cannot proceed without a valid amateur radio license."
+        )
+    log.info("  License validation passed — OK")
 
 # ---------------------------------------------------------------------------
 # Step 0 — Install system build dependencies via apt
@@ -1282,6 +1339,7 @@ def main():
 
     check_path()
     check_platform()
+    validate_operator_license()
     install_apt_deps()
     radio_profile = select_radio()
     build_openssl()
