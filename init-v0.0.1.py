@@ -55,24 +55,30 @@ log = logging.getLogger("ham_init")
 # Constants
 # ---------------------------------------------------------------------------
 
+LOCAL            = Path("/usr/local")
+LOCAL_BIN        = LOCAL / "bin"
+
 OPENSSL_VERSION  = "4.1"
 OPENSSL_REPO     = "https://github.com/openssl/openssl.git"
 OPENSSL_TAG      = "openssl-4.1"
 OPENSSL_DIR      = Path("build") / "openssl"
-OPENSSL_PREFIX   = "/usr/local"
+OPENSSL_PREFIX   = LOCAL
+OPENSSL_BIN      = LOCAL_BIN / "openssl"
 
 PYTHON_VERSION   = "3.14.3"
 PYTHON_TARBALL   = f"Python-{PYTHON_VERSION}.tar.xz"
 PYTHON_URL       = f"https://www.python.org/ftp/python/{PYTHON_VERSION}/{PYTHON_TARBALL}"
 PYTHON_DIR       = Path("build") / f"Python-{PYTHON_VERSION}"
-PYTHON_PREFIX    = "/usr/local"
-PYTHON_BIN       = Path(PYTHON_PREFIX) / "bin" / "python3.14"
+PYTHON_PREFIX    = LOCAL
+PYTHON_BIN       = LOCAL_BIN / "python3.14"
 
 SDRPP_REPO       = "https://github.com/AlexandreRouma/SDRPlusPlus.git"
 SDRPP_DIR        = Path("build") / "SDRPlusPlus"
+SDRPP_BIN        = LOCAL_BIN / "sdrpp"
 
 FLRIG_REPO       = "https://git.code.sf.net/p/fldigi/flrig"
 FLRIG_DIR        = Path("build") / "flrig"
+FLRIG_BIN        = LOCAL_BIN / "flrig"
 
 BUILD_DIR        = Path("build")
 SETTINGS_PATH    = Path("config") / "settings-v0.0.1.py"
@@ -157,18 +163,20 @@ def run(args: list, cwd: Path = None, desc: str = "") -> subprocess.CompletedPro
     return result
 
 
-def check_command(cmd: str) -> bool:
-    """Return True if a command is found on PATH."""
-    return shutil.which(cmd) is not None
+def in_local(cmd: str) -> bool:
+    """Return True if a command exists in /usr/local/bin. Never checks system PATH."""
+    return (LOCAL_BIN / cmd).exists()
 
 
 def require_commands(*cmds: str):
-    """Abort if any required build-time commands are missing."""
+    """Abort if any required build-time commands are missing from system PATH.
+    These are build tools (cmake, gcc, etc.) that must be installed separately —
+    they are NOT built by this script and may live anywhere on the system."""
     for cmd in cmds:
-        if not check_command(cmd):
+        if not __import__('shutil').which(cmd):
             abort(
                 f"Required build tool '{cmd}' not found on PATH. "
-                f"Install it and re-run."
+                f"Install it (e.g. sudo apt install {cmd}) and re-run."
             )
 
 
@@ -185,16 +193,16 @@ def build_openssl():
     log.info("")
     log.info("Step 1: Checking OpenSSL 4.1...")
 
-    result = subprocess.run(["openssl", "version"], capture_output=True, text=True)
-    if result.returncode == 0:
+    if OPENSSL_BIN.exists():
+        result = subprocess.run([str(OPENSSL_BIN), "version"], capture_output=True, text=True)
         installed = result.stdout.strip()
         log.info(f"  Detected: {installed}")
         if f"OpenSSL {OPENSSL_VERSION}" in installed:
-            log.info(f"  OpenSSL {OPENSSL_VERSION} already installed — skipping build")
+            log.info(f"  OpenSSL {OPENSSL_VERSION} already in /usr/local — skipping build")
             return
-        log.info(f"  OpenSSL {OPENSSL_VERSION} not present — building from source...")
+        log.info(f"  OpenSSL {OPENSSL_VERSION} not present in /usr/local — building from source...")
     else:
-        log.info("  OpenSSL not found — building from source...")
+        log.info("  /usr/local/bin/openssl not found — building from source...")
 
     require_commands("git", "make", "perl")
 
@@ -230,11 +238,15 @@ def build_openssl():
     log.info("  Installing OpenSSL...")
     run(["sudo", "make", "install"], cwd=OPENSSL_DIR, desc="make install OpenSSL")
 
-    result = subprocess.run(["openssl", "version"], capture_output=True, text=True)
-    if result.returncode != 0 or f"OpenSSL {OPENSSL_VERSION}" not in result.stdout:
+    if not OPENSSL_BIN.exists():
         abort(
-            f"OpenSSL build completed but OpenSSL {OPENSSL_VERSION} not detected. "
-            f"Verify {OPENSSL_PREFIX}/bin is on PATH and re-run."
+            f"OpenSSL build completed but {OPENSSL_BIN} not found. "
+            f"Check build output and re-run."
+        )
+    result = subprocess.run([str(OPENSSL_BIN), "version"], capture_output=True, text=True)
+    if f"OpenSSL {OPENSSL_VERSION}" not in result.stdout:
+        abort(
+            f"OpenSSL build completed but version mismatch: {result.stdout.strip()}"
         )
     log.info(f"  OpenSSL {OPENSSL_VERSION} built and installed — OK")
 
@@ -344,8 +356,8 @@ def build_sdrpp():
     log.info("")
     log.info("Step 4: Checking SDR++...")
 
-    if check_command("sdrpp"):
-        log.info("  sdrpp found on PATH — skipping build")
+    if in_local("sdrpp"):
+        log.info("  sdrpp found in /usr/local — skipping build")
         return
 
     log.info("  sdrpp not found — building from latest source...")
@@ -376,8 +388,8 @@ def build_sdrpp():
     log.info("  Installing SDR++...")
     run(["sudo", "make", "install"], cwd=build_output, desc="make install SDR++")
 
-    if not check_command("sdrpp"):
-        abort("SDR++ build completed but 'sdrpp' still not found on PATH.")
+    if not in_local("sdrpp"):
+        abort(f"SDR++ build completed but {SDRPP_BIN} not found.")
     log.info("  SDR++ built and installed — OK")
 
 
@@ -389,8 +401,8 @@ def build_flrig():
     log.info("")
     log.info("Step 5: Checking FlRig...")
 
-    if check_command("flrig"):
-        log.info("  flrig found on PATH — skipping build")
+    if in_local("flrig"):
+        log.info("  flrig found in /usr/local — skipping build")
         return
 
     log.info("  flrig not found — building from latest source...")
@@ -417,8 +429,8 @@ def build_flrig():
     log.info("  Installing FlRig...")
     run(["sudo", "make", "install"], cwd=FLRIG_DIR, desc="make install FlRig")
 
-    if not check_command("flrig"):
-        abort("FlRig build completed but 'flrig' still not found on PATH.")
+    if not in_local("flrig"):
+        abort(f"FlRig build completed but {FLRIG_BIN} not found.")
     log.info("  FlRig built and installed — OK")
 
 
