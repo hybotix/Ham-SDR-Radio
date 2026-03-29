@@ -173,6 +173,7 @@ APT_PACKAGES = [
 RADIO_PROFILES = {
     "1": {
         "name":        "Xiegu G90",      # Radio model name
+        "topic_name":  "radio_1",        # Used in MQTT topics — user should customize
         "model":       "g90",
         "protocol":    "CI-V",
         "baud":        19200,
@@ -736,6 +737,7 @@ DEFAULT_SETTINGS = {
         {
             "index":           1,
             "name":            "{radio_name}",
+            "topic_name":      "radio_1",
             "model":           "{radio_model}",
             "port":            "{rig_port}",
             "baud":            "{rig_baud}",
@@ -782,10 +784,11 @@ def create_settings(radio_profile: dict):
     log.info(f"  Creating default settings file: {SETTINGS_PATH}")
 
     settings = json.loads(json.dumps(DEFAULT_SETTINGS))  # deep copy
-    settings["radios"][0]["name"]  = radio_profile["name"]
-    settings["radios"][0]["model"] = radio_profile["model"]
-    settings["radios"][0]["port"]  = radio_profile["port_hint"]
-    settings["radios"][0]["baud"]  = radio_profile["baud"]
+    settings["radios"][0]["name"]       = radio_profile["name"]
+    settings["radios"][0]["topic_name"] = radio_profile["topic_name"]
+    settings["radios"][0]["model"]      = radio_profile["model"]
+    settings["radios"][0]["port"]       = radio_profile["port_hint"]
+    settings["radios"][0]["baud"]       = radio_profile["baud"]
 
     SETTINGS_PATH.write_text(json.dumps(settings, indent=4) + "\n")
     log.info(f"  {SETTINGS_PATH} created — OK")

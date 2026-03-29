@@ -120,6 +120,7 @@ RADIOS = [
     {
         "index":           1,
         "name":            "Radio name here",
+        "topic_name":      "hf_rig",         # Used in MQTT topics
         "model":           "g90",
         "port":            "/dev/ttyUSB0",
         "baud":            19200,
@@ -221,23 +222,25 @@ FT8 and WSPR decoding/encoding is handled by WSJT-X running as an external proce
 
 Ham System publishes per-radio telemetry to the My Chairiet MQTT bus using indexed topics. Each radio instance publishes independently.
 
-**Topic structure:** `console/radio/{index}/{parameter}`
+**Topic structure:** `console/radio/{topic_name}/{parameter}`
+
+Each radio has a user-defined `topic_name` field in its configuration. This name is used in all MQTT topics for that radio, making topics instantly meaningful rather than relying on numeric indexes.
 
 ```
-console/radio/1/frequency   # Radio 1 operating frequency (Hz)
-console/radio/1/mode        # Radio 1 mode (USB/LSB/CW/FT8/etc.)
-console/radio/1/tx_state    # Radio 1 transmitting: true/false
-console/radio/1/smeter      # Radio 1 S-meter reading
-console/radio/2/frequency   # Radio 2 operating frequency (Hz)
-console/radio/2/mode        # Radio 2 mode
-console/radio/2/tx_state    # Radio 2 transmitting: true/false
-console/radio/2/smeter      # Radio 2 S-meter reading
+console/radio/hf_rig/frequency   # Radio 'hf_rig' operating frequency (Hz)
+console/radio/hf_rig/mode        # Radio 'hf_rig' mode (USB/LSB/CW/FT8/etc.)
+console/radio/hf_rig/tx_state    # Radio 'hf_rig' transmitting: true/false
+console/radio/hf_rig/smeter      # Radio 'hf_rig' S-meter reading
+console/radio/vhf_rig/frequency  # Radio 'vhf_rig' operating frequency (Hz)
+console/radio/vhf_rig/mode       # Radio 'vhf_rig' mode
+console/radio/vhf_rig/tx_state   # Radio 'vhf_rig' transmitting: true/false
+console/radio/vhf_rig/smeter     # Radio 'vhf_rig' S-meter reading
 
-alerts/radio/1/tx_stuck     # ALERT: Radio 1 TX guard triggered
-alerts/radio/2/tx_stuck     # ALERT: Radio 2 TX guard triggered
+alerts/radio/hf_rig/tx_stuck     # ALERT: Radio 'hf_rig' TX guard triggered
+alerts/radio/vhf_rig/tx_stuck   # ALERT: Radio 'vhf_rig' TX guard triggered
 ```
 
-A subscriber can monitor all radios with `console/radio/#` or a single radio with `console/radio/1/#`.
+A subscriber can monitor all radios with `console/radio/#` or a single radio with `console/radio/hf_rig/#`.
 
 ---
 
@@ -279,7 +282,8 @@ Configuration is read at runtime via Python's standard `json` module. All module
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `RADIOS` | List of radio config dicts — one entry per radio | See settings file |
-| `RADIOS[n].index` | Radio index (1-based) — used in MQTT topics | `1` |
+| `RADIOS[n].index` | Radio index (1-based) | `1` |
+| `RADIOS[n].topic_name` | User-defined name used in MQTT topics | e.g. `hf_rig` |
 | `RADIOS[n].port` | Serial port for CAT control | `/dev/ttyUSB0` |
 | `RADIOS[n].baud` | CAT baud rate | `19200` |
 | `RADIOS[n].audio_interface` | Interface type (`de19` or `digirig`) | `de19` |
