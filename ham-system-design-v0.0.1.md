@@ -52,12 +52,12 @@ All Python files must include a version number as a suffix in the filename.
 **Format:** `filename-vX.Y.Z.py`
 
 **Examples:**
-- `rig_control-v0.1.0.py`
-- `tx_guard-v0.1.0.py`
-- `ham_system-v0.1.0.py`
+- `rig_control-v0.0.1.py`
+- `tx_guard-v0.0.1.py`
+- `ham_system-v0.0.1.py`
 
 - Versioning follows semantic versioning (MAJOR.MINOR.PATCH)
-- All files start at `v0.1.0`
+- All files start at `v0.0.1`
 - Version in filename must match the version declared inside the file
 - Version bumps are applied ONLY to the file(s) actually changed — never as a blanket project-wide bump
 - No file is committed or deployed without a version suffix
@@ -123,24 +123,24 @@ G90 Head Unit <---> G90 Body <---> Ham System (Python / CAT)
 ```
 ham_system/
 ├── core/
-│   ├── rig_control-v0.1.0.py        # Safe CAT abstraction layer (NO hamlib)
-│   ├── tx_guard-v0.1.0.py           # Transmit safety enforcement
-│   └── state_machine-v0.1.0.py      # Radio state tracking
+│   ├── rig_control-v0.0.1.py        # Safe CAT abstraction layer (NO hamlib)
+│   ├── tx_guard-v0.0.1.py           # Transmit safety enforcement
+│   └── state_machine-v0.0.1.py      # Radio state tracking
 ├── modes/
-│   ├── ft8_interface-v0.1.0.py      # WSJT-X UDP API bridge
-│   ├── wspr_interface-v0.1.0.py     # WSPR interface
-│   └── cw_keyer-v0.1.0.py           # CW keying support
+│   ├── ft8_interface-v0.0.1.py      # WSJT-X UDP API bridge
+│   ├── wspr_interface-v0.0.1.py     # WSPR interface
+│   └── cw_keyer-v0.0.1.py           # CW keying support
 ├── logging/
-│   ├── qso_log-v0.1.0.py            # SQLite QSO logging
-│   └── adif_export-v0.1.0.py        # ADIF export for LoTW / QRZ
+│   ├── qso_log-v0.0.1.py            # SQLite QSO logging
+│   └── adif_export-v0.0.1.py        # ADIF export for LoTW / QRZ
 ├── aprs/
-│   └── beacon-v0.1.0.py             # APRS position beaconing
+│   └── beacon-v0.0.1.py             # APRS position beaconing
 ├── mqtt/
-│   └── chairiet_bridge-v0.1.0.py    # My Chairiet MQTT integration
+│   └── chairiet_bridge-v0.0.1.py    # My Chairiet MQTT integration
 ├── ui/
-│   └── main_ui-v0.1.0.py            # Touch UI (TBD)
+│   └── main_ui-v0.0.1.py            # Touch UI (TBD)
 └── config/
-    └── settings-v0.1.0.py           # System configuration
+    └── settings-v0.0.1.py           # System configuration
 ```
 
 ### 3.3 CAT Control Strategy
@@ -207,7 +207,7 @@ Because of the hamlib bug and the general risks of uncontrolled transmission, th
 
 ### 5.1 Configuration File
 
-All system configuration is stored in a single versioned Python settings file (`settings-v0.1.0.py`). No external config formats (YAML, INI, JSON) are used — configuration is pure Python for consistency with the all-Python policy.
+All system configuration is stored in a single versioned Python settings file (`settings-v0.0.1.py`). No external config formats (YAML, INI, JSON) are used — configuration is pure Python for consistency with the all-Python policy.
 
 ### 5.2 Configuration Parameters
 
@@ -260,7 +260,7 @@ CREATE TABLE qso (
 
 ### 6.3 ADIF Export
 
-QSO records are exportable to ADIF format for upload to LoTW, QRZ, and other logging services. The export module (`adif_export-v0.1.0.py`) supports:
+QSO records are exportable to ADIF format for upload to LoTW, QRZ, and other logging services. The export module (`adif_export-v0.0.1.py`) supports:
 - Full database export
 - Export of un-exported records only (incremental)
 - Date range export
@@ -305,7 +305,7 @@ The APRS module will command the G90 to QSY to 144.390 MHz, transmit the beacon,
 
 ### 7.4 Implementation
 
-- APRS packet encoding implemented in Python (`beacon-v0.1.0.py`)
+- APRS packet encoding implemented in Python (`beacon-v0.0.1.py`)
 - No external APRS daemon required
 - Beacon interval is configurable (default 10 minutes)
 - GPS position updates beacon coordinates automatically when GPS is available
@@ -323,7 +323,7 @@ The APRS module will command the G90 to QSY to 144.390 MHz, transmit the beacon,
 
 ### 8.1 Overview
 
-The CW keyer module (`cw_keyer-v0.1.0.py`) provides software-driven CW keying of the G90 via the ACC port or RTS/DTR lines on the CAT serial interface.
+The CW keyer module (`cw_keyer-v0.0.1.py`) provides software-driven CW keying of the G90 via the ACC port or RTS/DTR lines on the CAT serial interface.
 
 ### 8.2 Keying Method
 
@@ -359,7 +359,7 @@ All modules are tested in isolation before integration. No module is considered 
 ### 9.2 Test Framework
 
 - **`unittest`** — Python standard library, no external dependencies required
-- Test files follow the same versioned naming convention: `test_rig_control-v0.1.0.py`
+- Test files follow the same versioned naming convention: `test_rig_control-v0.0.1.py`
 - All tests live in a `tests/` directory mirroring the module structure
 
 ### 9.3 Test Structure
@@ -367,17 +367,17 @@ All modules are tested in isolation before integration. No module is considered 
 ```
 tests/
 ├── core/
-│   ├── test_rig_control-v0.1.0.py
-│   ├── test_tx_guard-v0.1.0.py
-│   └── test_state_machine-v0.1.0.py
+│   ├── test_rig_control-v0.0.1.py
+│   ├── test_tx_guard-v0.0.1.py
+│   └── test_state_machine-v0.0.1.py
 ├── modes/
-│   ├── test_ft8_interface-v0.1.0.py
-│   └── test_cw_keyer-v0.1.0.py
+│   ├── test_ft8_interface-v0.0.1.py
+│   └── test_cw_keyer-v0.0.1.py
 ├── logging/
-│   ├── test_qso_log-v0.1.0.py
-│   └── test_adif_export-v0.1.0.py
+│   ├── test_qso_log-v0.0.1.py
+│   └── test_adif_export-v0.0.1.py
 └── aprs/
-    └── test_beacon-v0.1.0.py
+    └── test_beacon-v0.0.1.py
 ```
 
 ### 9.4 Hardware-in-the-Loop Testing
@@ -402,49 +402,49 @@ The TX guard is tested exhaustively — it is safety-critical code. Tests cover:
 - [ ] Python 3.14.3 build complete on "hammer"
 - [ ] OpenSSL 4.1 build complete on "hammer"
 - [ ] Repo structure scaffolded
-- [ ] Settings module (`settings-v0.1.0.py`) implemented
+- [ ] Settings module (`settings-v0.0.1.py`) implemented
 
 ### Phase 1 — Rig Control Core
-- [ ] CAT serial interface (`rig_control-v0.1.0.py`) — read frequency, mode, S-meter
-- [ ] TX guard layer (`tx_guard-v0.1.0.py`)
-- [ ] Radio state machine (`state_machine-v0.1.0.py`)
+- [ ] CAT serial interface (`rig_control-v0.0.1.py`) — read frequency, mode, S-meter
+- [ ] TX guard layer (`tx_guard-v0.0.1.py`)
+- [ ] Radio state machine (`state_machine-v0.0.1.py`)
 - [ ] Unit tests passing with mock serial interface
 - [ ] Hardware-in-the-loop tests passing with G90 connected
 
 ### Phase 2 — Logging
-- [ ] QSO database (`qso_log-v0.1.0.py`)
-- [ ] ADIF export (`adif_export-v0.1.0.py`)
+- [ ] QSO database (`qso_log-v0.0.1.py`)
+- [ ] ADIF export (`adif_export-v0.0.1.py`)
 - [ ] TX event logging integrated into TX guard
 - [ ] Unit tests passing
 
 ### Phase 3 — Digital Modes
-- [ ] WSJT-X UDP bridge (`ft8_interface-v0.1.0.py`)
-- [ ] WSPR interface (`wspr_interface-v0.1.0.py`)
+- [ ] WSJT-X UDP bridge (`ft8_interface-v0.0.1.py`)
+- [ ] WSPR interface (`wspr_interface-v0.0.1.py`)
 - [ ] FT8 QSOs logging automatically
 - [ ] Integration tests passing
 
 ### Phase 4 — CW Keyer
-- [ ] CW keyer (`cw_keyer-v0.1.0.py`)
+- [ ] CW keyer (`cw_keyer-v0.0.1.py`)
 - [ ] Keyboard CW operational
 - [ ] Iambic paddle input working
 - [ ] Full QSK verified on G90
 - [ ] CW QSOs logging correctly
 
 ### Phase 5 — APRS
-- [ ] APRS beacon (`beacon-v0.1.0.py`)
+- [ ] APRS beacon (`beacon-v0.0.1.py`)
 - [ ] Position beaconing on 144.390 MHz
 - [ ] QSY and return sequence verified safe
 - [ ] Beacon suppression during active operation verified
 
 ### Phase 6 — My Chairiet Integration
-- [ ] MQTT bridge (`chairiet_bridge-v0.1.0.py`)
+- [ ] MQTT bridge (`chairiet_bridge-v0.0.1.py`)
 - [ ] Radio telemetry publishing to MQTT bus
 - [ ] TX stuck alert firing correctly
 - [ ] Integration tested with My Chairiet MQTT broker
 
 ### Phase 7 — UI
 - [ ] Touch UI design finalized
-- [ ] Main UI (`main_ui-v0.1.0.py`) implemented
+- [ ] Main UI (`main_ui-v0.0.1.py`) implemented
 - [ ] Touchscreen tested on "hammer"
 - [ ] Full system integration test
 
