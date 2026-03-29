@@ -14,6 +14,7 @@ This script handles:
   Step 5 — Check/build FlRig from latest source
   Step 6 — Install Python dependencies into venv
   Step 7 — Verify radio serial port(s)
+  Step 7.5 — Set all Python scripts executable
   Step 8 — Create startup script (start-v0.0.1.py)
   Step 9 — Create default settings file if not present
 
@@ -765,6 +766,33 @@ LOG_LEVEL = "INFO"                  # DEBUG / INFO / WARNING / ERROR
 
 
 
+
+# ---------------------------------------------------------------------------
+# Step 7.5 - Set all Python scripts executable
+# ---------------------------------------------------------------------------
+
+def make_scripts_executable():
+    log.info("")
+    log.info("Step 7.5: Setting all Python scripts executable...")
+
+    repo_path = Path(__file__).resolve().parent
+    scripts = list(repo_path.rglob("*.py"))
+
+    if not scripts:
+        log.info("  No Python scripts found.")
+        return
+
+    for script in sorted(scripts):
+        current = script.stat().st_mode
+        new_mode = current | 0o755
+        if current != new_mode:
+            script.chmod(new_mode)
+            log.info(f"  chmod +x {script.relative_to(repo_path)}")
+        else:
+            log.info(f"  already executable: {script.relative_to(repo_path)}")
+
+    log.info(f"  {len(scripts)} script(s) set executable -- OK")
+
 # ---------------------------------------------------------------------------
 # Step 8 — Create startup script
 # ---------------------------------------------------------------------------
@@ -1046,6 +1074,7 @@ def main():
     build_flrig()
     install_python_deps()
     verify_g90_port()
+    make_scripts_executable()
     create_startup_script()
     create_settings(radio_profile)
 
