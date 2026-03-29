@@ -728,6 +728,138 @@ def verify_g90_port():
 # Step 9 — Create default settings file
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Step 7.5 - Set shebang and make all Python scripts executable
+# ---------------------------------------------------------------------------
+
+SHEBANG = "#!/usr/bin/env python3"
+
+
+def make_scripts_executable():
+    """
+    Ensure all Python scripts in the repo:
+    1. Have #!/usr/bin/env python3 as the first line
+    2. Are set executable (chmod +x)
+    """
+    log.info("")
+    log.info("Step 7.5: Checking shebangs and setting scripts executable...")
+
+    repo_path = Path(__file__).resolve().parent
+    scripts = list(repo_path.rglob("*.py"))
+
+    if not scripts:
+        log.info("  No Python scripts found.")
+        return
+
+    for script in sorted(scripts):
+        text = script.read_text(encoding="utf-8")
+        if not text.startswith(SHEBANG):
+            log.info(f"  Adding shebang: {script.relative_to(repo_path)}")
+            script.write_text(SHEBANG + "\n" + text, encoding="utf-8")
+        else:
+            log.info(f"  Shebang OK: {script.relative_to(repo_path)}")
+
+        current = script.stat().st_mode
+        if not (current & 0o111):
+            script.chmod(current | 0o755)
+            log.info(f"  chmod +x: {script.relative_to(repo_path)}")
+
+    log.info(f"  {len(scripts)} script(s) verified and set executable -- OK")
+
+
+# ---------------------------------------------------------------------------
+# Step 8 - Create startup script
+# ---------------------------------------------------------------------------
+
+def create_startup_script():
+    log.info("")
+    log.info("Step 8: Creating startup script...")
+
+    if STARTUP_SCRIPT.exists():
+        log.info(f"  {STARTUP_SCRIPT} already exists -- skipping")
+        return
+
+    repo_path = Path(__file__).resolve().parent
+
+    lines = [
+        "#!/usr/bin/env python3",
+        '"""',
+        "start-v0.0.1.py -- Ham System Startup Script",
+        "Project: Ham System -- Integrated Ham Radio Control Platform",
+        "Author:  Dale -- Hybrid RobotiX / The Accessibility Files",
+        "Version: 0.0.1",
+        "",
+        "Activates the Ham-SDR-Radio virtual environment, changes into the",
+        "repo directory, and starts the Ham System.",
+        "",
+        "Usage: python3 start-v0.0.1.py",
+        '"""',
+        "",
+        'VERSION = "0.0.1"',
+        "",
+        "import os",
+        "import sys",
+        "from pathlib import Path",
+        "",
+        f'REPO_PATH     = Path("{repo_path}")',
+        f'VENV_PATH     = Path("{VENV_PATH}")',
+        'VENV_PYTHON   = VENV_PATH / "bin" / "python3"',
+        'VENV_ACTIVATE = VENV_PATH / "bin" / "activate"',
+        "",
+        "",
+        "def main():",
+        '    print("=" * 70)',
+        '    print("  Ham System Startup")',
+        '    print("  Integrated Ham Radio Control Platform")',
+        '    print(f"  Version {VERSION}")',
+        '    print("  Hybrid RobotiX / The Accessibility Files")',
+        '    print("  I. WILL. NEVER. GIVE. UP. OR. SURRENDER.")',
+        '    print("=" * 70)',
+        '    print()',
+        "",
+        "    if not VENV_PYTHON.exists():",
+        '        print(f"FATAL: Virtual environment not found at {VENV_PATH}")',
+        '        print( "       Run init-v0.0.1.py to initialize the system first.")',
+        "        sys.exit(1)",
+        "",
+        "    if not REPO_PATH.exists():",
+        '        print(f"FATAL: Repo not found at {REPO_PATH}")',
+        "        sys.exit(1)",
+        "",
+        "    os.chdir(REPO_PATH)",
+        '    print(f"  Working directory : {REPO_PATH}")',
+        '    print(f"  Virtual env       : {VENV_PATH}")',
+        '    print(f"  Python            : {VENV_PYTHON}")',
+        '    print()',
+        "",
+        "    if Path(sys.executable).resolve() != Path(str(VENV_PYTHON)).resolve():",
+        '        print("  Activating virtual environment...")',
+        "        os.execv(str(VENV_PYTHON), [str(VENV_PYTHON)] + sys.argv)",
+        "",
+        "    # Running inside venv from here",
+        '    print("  Virtual environment active -- OK")',
+        '    print()',
+        '    print("  Ham System starting...")',
+        '    print("  (Main entry point not yet implemented)")',
+        "",
+        "",
+        'if __name__ == "__main__":',
+        "    main()",
+    ]
+
+    STARTUP_SCRIPT.write_text("\n".join(lines) + "\n")
+    STARTUP_SCRIPT.chmod(0o755)
+    log.info(f"  {STARTUP_SCRIPT} created -- OK")
+    log.info("")
+    log.info("  To start the Ham System:")
+    log.info(f"    python3 {STARTUP_SCRIPT}")
+    log.info("")
+    log.info("  To activate the venv manually:")
+    log.info(f"    source {VENV_ACTIVATE}")
+    log.info(f"    cd {repo_path}")
+
+
+
 DEFAULT_SETTINGS = {
     "_version": "0.0.1",
     "_description": "Ham System Configuration — Ham System Integrated Ham Radio Control Platform",
