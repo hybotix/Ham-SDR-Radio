@@ -150,8 +150,17 @@ APT_PACKAGES = [
     "libglfw3-dev",         # OpenGL windowing
     "libvolk-dev",          # Vector optimized math
     "libfftw3-dev",         # FFT library
+    "libzstd-dev",          # Zstandard compression
     "librtlsdr-dev",        # RTL-SDR support
-    "libzstd-dev",          # Zstandard compression (SDR++)
+    "libairspy-dev",        # Airspy support
+    "libairspyhf-dev",      # Airspy HF+ support
+    "libhackrf-dev",        # HackRF support
+    "libbladerf-dev",       # BladeRF support
+    "liblimesuite-dev",     # LimeSDR support
+    "libad9361-dev",        # PlutoSDR/AD9361 support
+    "libiio-dev",           # Industrial I/O (PlutoSDR)
+    "libusb-1.0-0-dev",     # USB support
+    "libnng-dev",           # Networking (SDR++ network sink)
 
     # FlRig dependencies
     "libfltk1.3-dev",       # FLTK GUI toolkit
@@ -664,18 +673,18 @@ def build_sdrpp():
         ["cmake", "..",
          "-DOPT_BUILD_AUDIO_SINK=ON",
          "-DOPT_BUILD_SOAPY_SOURCE=OFF",
-         "-DOPT_BUILD_AIRSPY_SOURCE=OFF",
-         "-DOPT_BUILD_AIRSPYHF_SOURCE=OFF",
-         "-DOPT_BUILD_BLADERF_SOURCE=OFF",
+         "-DOPT_BUILD_AIRSPY_SOURCE=ON",
+         "-DOPT_BUILD_AIRSPYHF_SOURCE=ON",
+         "-DOPT_BUILD_BLADERF_SOURCE=ON",
          "-DOPT_BUILD_FILE_SOURCE=ON",
-         "-DOPT_BUILD_HACKRF_SOURCE=OFF",
-         "-DOPT_BUILD_LIMESDR_SOURCE=OFF",
+         "-DOPT_BUILD_HACKRF_SOURCE=ON",
+         "-DOPT_BUILD_LIMESDR_SOURCE=ON",
          "-DOPT_BUILD_MIRISDR_SOURCE=OFF",
-         "-DOPT_BUILD_PLUTOSDR_SOURCE=OFF",
+         "-DOPT_BUILD_PLUTOSDR_SOURCE=ON",
          "-DOPT_BUILD_RFSPACE_SOURCE=OFF",
          "-DOPT_BUILD_RTL_SDR_SOURCE=ON",
          "-DOPT_BUILD_RTL_TCP_SOURCE=ON",
-         "-DOPT_BUILD_SPYSERVER_SOURCE=OFF",
+         "-DOPT_BUILD_SPYSERVER_SOURCE=ON",
          "-DOPT_BUILD_USRP_SOURCE=OFF",
          ],
         cwd=build_output,
