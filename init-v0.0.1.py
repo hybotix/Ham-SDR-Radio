@@ -670,6 +670,9 @@ def build_sdrpp():
     build_output.mkdir(exist_ok=True)
 
     log.info("  Running cmake...")
+    log.info("  Building SDR++ with ALL supported source modules enabled.")
+    log.info("  This ensures SDR++ works with any supported SDR hardware,")
+    log.info("  not just the primary radio used by this system.")
     run(
         ["cmake", "..",
          "-DOPT_BUILD_AUDIO_SINK=ON",
