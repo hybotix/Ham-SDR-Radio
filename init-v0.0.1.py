@@ -227,6 +227,7 @@ PYTHON_DEPS = [
     "pyaudio",
     "paho-mqtt",
     "aprslib",
+    "certifi",          # CA certificates for SSL verification
     "requests",          # HTTP for license advisor API queries
 ]
 

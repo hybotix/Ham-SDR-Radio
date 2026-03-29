@@ -28,6 +28,7 @@ VERSION = "0.0.1"
 
 import sys
 import json
+import ssl
 import urllib.request
 import urllib.error
 import zipfile
@@ -209,6 +210,19 @@ def detect_authority(callsign: str) -> str:
 # FCC lookup via callook.info
 # ---------------------------------------------------------------------------
 
+def _ssl_context():
+    """
+    Return an SSL context using certifi's CA bundle if available,
+    falling back to the system CA bundle.
+    """
+    try:
+        import certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        ctx = ssl.create_default_context()
+    return ctx
+
+
 def lookup_fcc(callsign: str) -> dict:
     """Query callook.info for FCC license data."""
     url = CALLOOK_API.format(callsign=callsign.upper())
@@ -218,7 +232,7 @@ def lookup_fcc(callsign: str) -> dict:
         req = urllib.request.Request(
             url, headers={"User-Agent": "HamSystem/0.0.1"}
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10, context=_ssl_context()) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.URLError as e:
         raise LookupError(f"Network error querying callook.info: {e}")
@@ -278,7 +292,7 @@ def _download_ised_db() -> dict:
         req = urllib.request.Request(
             ISED_DB_URL, headers={"User-Agent": "HamSystem/0.0.1"}
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=30, context=_ssl_context()) as resp:
             zip_data = resp.read()
     except urllib.error.URLError as e:
         raise LookupError(f"Failed to download ISED database: {e}")
