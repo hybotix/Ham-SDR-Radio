@@ -161,6 +161,7 @@ APT_PACKAGES = [
     "libiio-dev",           # Industrial I/O (PlutoSDR)
     "libusb-1.0-0-dev",     # USB support
     "libnng-dev",           # Networking (SDR++ network sink)
+    "librtaudio-dev",       # RtAudio (SDR++ audio source)
 
     # FlRig dependencies
     "libfltk1.3-dev",       # FLTK GUI toolkit
