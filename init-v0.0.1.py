@@ -296,8 +296,10 @@ def check_platform():
     if not Path("/usr/bin/dpkg").exists():
         abort(
             "This system does not appear to be Debian-based (dpkg not found).\n"
-            "  Debian, Raspberry Pi OS, Ubuntu, and derivatives are supported.\n"
-            "  Other systems are not supported and will not be."
+            "  Supported: Debian, Raspberry Pi OS, Ubuntu, and derivatives.\n"
+            "  Unsupported systems are COMPLETELY ON THEIR OWN.\n"
+            "  No support will be provided for non-Debian-based systems.\n"
+            "  Do not open issues. Do not ask for help. This is final."
         )
 
     # Read /etc/os-release for display purposes
