@@ -6,6 +6,7 @@ Author:  Dale — Hybrid RobotiX / The Accessibility Files
 Version: 0.0.1
 
 This script handles:
+  Pre-flight — Verify Debian-based platform (dpkg required)
   Step 0 — Install required system build dependencies via apt
   Step 1 — Check/build OpenSSL 4.1 from source
   Step 2 — Check/build Python 3.14.3 from source
@@ -18,7 +19,9 @@ This script handles:
   Step 8 — Create startup script (start-v0.0.1.py)
   Step 9 — Create default settings file if not present (JSON format)
 
-Package manager: apt/dpkg (Debian/Raspberry Pi OS)
+Package manager: apt/dpkg required. Debian-based systems ONLY.
+                 (Debian, Raspberry Pi OS, Ubuntu, and derivatives)
+                 Other systems are not supported and will not be.
 
 Virtual environment: ~/Virtual/Ham-SDR-Radio (created from Python 3.14.3)
 Startup script:      start-v0.0.1.py (sources venv, cds into repo, starts system)
@@ -279,6 +282,36 @@ def require_commands(*cmds: str):
 def cpu_jobs() -> int:
     """Return a safe parallel job count for make."""
     return os.cpu_count() or 2
+
+
+
+def check_platform():
+    """
+    Abort immediately if not running on a Debian-based system.
+    apt/dpkg is required. Other systems are not supported.
+    """
+    log.info("")
+    log.info("Pre-flight: Checking platform...")
+
+    if not Path("/usr/bin/dpkg").exists():
+        abort(
+            "This system does not appear to be Debian-based (dpkg not found).\n"
+            "  Debian, Raspberry Pi OS, Ubuntu, and derivatives are supported.\n"
+            "  Other systems are not supported and will not be."
+        )
+
+    # Read /etc/os-release for display purposes
+    os_release = {}
+    try:
+        for line in Path("/etc/os-release").read_text().splitlines():
+            if "=" in line:
+                k, v = line.split("=", 1)
+                os_release[k] = v.strip('"')
+    except Exception:
+        pass
+
+    name = os_release.get("PRETTY_NAME", "Unknown Debian-based system")
+    log.info(f"  Platform: {name} — OK")
 
 
 # ---------------------------------------------------------------------------
@@ -917,6 +950,7 @@ def main():
     banner()
 
     check_path()
+    check_platform()
     install_apt_deps()
     radio_profile = select_radio()
     build_openssl()
