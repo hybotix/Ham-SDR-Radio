@@ -553,7 +553,7 @@ def validate_operator_license():
 
     log.info(f"  Validating callsign: {callsign}")
     result = subprocess.run(
-        [sys.executable, str(advisor), "--callsign", callsign],
+        [sys.executable, str(advisor), callsign],
         capture_output=False,  # Let output stream to console
         text=True,
     )
