@@ -757,6 +757,43 @@ def build_openssl():
 # Step 4 — Build Python 3.14.3 from source
 # ---------------------------------------------------------------------------
 
+def _create_local_symlinks():
+    """
+    Create unversioned symlinks in /usr/local/bin for all versioned
+    executables installed there. Ensures that python3, pip3, openssl,
+    etc. resolve to the correct /usr/local versions.
+
+    Examples:
+      python3.14  -> python3
+      pip3.14     -> pip3
+      openssl     -> openssl (already unversioned, skip)
+    """
+    log.info("  Creating /usr/local/bin symlinks for new executables...")
+
+    # Explicit symlinks we always want
+    wanted = {
+        PYTHON_BIN.name:                    "python3",
+        f"pip{PYTHON_VERSION.rsplit('.', 1)[0]}": "pip3",
+        f"pip{PYTHON_VERSION}":             "pip3",
+    }
+
+    for target_name, link_name in wanted.items():
+        target = LOCAL_BIN / target_name
+        link   = LOCAL_BIN / link_name
+        if not target.exists():
+            continue
+        if link.exists() or link.is_symlink():
+            log.info(f"    {link_name} already exists -- skipping")
+            continue
+        run(
+            ["sudo", "ln", "-sf", str(target), str(link)],
+            desc=f"ln -sf {target_name} {link_name}",
+        )
+        log.info(f"    {link_name} -> {target_name} -- OK")
+
+    log.info("  Symlinks -- OK")
+
+
 def build_python():
     log.info("")
     log.info("Step 4: Checking Python 3.14.3...")
@@ -855,6 +892,9 @@ def build_python():
             f"Python build completed but {PYTHON_BIN} not found. "
             f"Check build output and re-run."
         )
+    # Create unversioned symlinks in /usr/local/bin for all new executables
+    _create_local_symlinks()
+
     log.info(f"  Python {PYTHON_VERSION} built and installed at {PYTHON_BIN} — OK")
     _warn_if_wrong_python()
 
