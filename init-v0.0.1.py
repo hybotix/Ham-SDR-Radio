@@ -1143,14 +1143,24 @@ def make_scripts_executable():
     log.info("Step 11: Checking shebangs and setting scripts executable...")
 
     repo_path = Path(__file__).resolve().parent
-    scripts = list(repo_path.rglob("*.py"))
+    # Only process scripts in the repo itself, not build/ subdirectories
+    scripts = [
+        f for f in repo_path.rglob("*.py")
+        if BUILD_DIR.name not in f.parts
+    ]
 
     if not scripts:
         log.info("  No Python scripts found.")
         return
 
     for script in sorted(scripts):
-        text = script.read_text(encoding="utf-8")
+        try:
+            text = script.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            # Skip non-UTF-8 files (e.g. files in build/ subdirectories)
+            log.info(f"  Skipping non-UTF-8 file: {script.relative_to(repo_path)}")
+            continue
+
         if not text.startswith(SHEBANG):
             log.info(f"  Adding shebang: {script.relative_to(repo_path)}")
             script.write_text(SHEBANG + "\n" + text, encoding="utf-8")
