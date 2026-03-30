@@ -467,6 +467,67 @@ def validate_license(callsign: str) -> dict:
 
 
 
+def configure_pi5_fan():
+    """
+    Configure the Raspberry Pi 5 fan controller if running on a Pi 5.
+    Adds fan temperature thresholds to /boot/firmware/config.txt if not
+    already present. Takes effect on next reboot.
+    Skipped silently on non-Pi hardware.
+    """
+    config_path = Path("/boot/firmware/config.txt")
+
+    # Only applies to Raspberry Pi 5
+    model_path = Path("/proc/device-tree/model")
+    if not model_path.exists():
+        return
+    model = model_path.read_bytes().decode("utf-8", errors="ignore")
+    if "Raspberry Pi 5" not in model:
+        return
+
+    log.info("")
+    log.info("Pi 5 Fan: Checking fan controller configuration...")
+
+    if not config_path.exists():
+        log.warning(f"  {config_path} not found -- skipping fan configuration.")
+        return
+
+    content = config_path.read_text()
+
+    fan_lines = [
+        "dtparam=fan_temp0=60000,fan_temp0_hyst=5000,fan_temp0_speed=75",
+        "dtparam=fan_temp1=70000,fan_temp1_hyst=5000,fan_temp1_speed=100",
+    ]
+
+    if all(line in content for line in fan_lines):
+        log.info("  Fan controller already configured -- skipping.")
+        return
+
+    log.info("  Adding fan temperature thresholds to /boot/firmware/config.txt...")
+    log.info("  Fan will spin at 75% at 60C and 100% at 70C.")
+
+    addition = (
+        "\n# Ham System -- Raspberry Pi 5 fan controller\n"
+        + "\n".join(fan_lines) + "\n"
+    )
+
+    try:
+        result = subprocess.run(
+            ["sudo", "tee", "-a", str(config_path)],
+            input=addition,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            log.warning(f"  Could not write fan config: {result.stderr.strip()}")
+            return
+    except Exception as e:
+        log.warning(f"  Could not write fan config: {e}")
+        return
+
+    log.info("  Fan controller configured -- OK")
+    log.info("  NOTE: Fan settings take effect after reboot.")
+
+
 def check_platform():
     """
     Abort immediately if not running on a Debian-based system.
@@ -1506,6 +1567,7 @@ def main():
 
     check_path()
     check_platform()
+    configure_pi5_fan()
     install_apt_deps()
     radio_profile = select_radio()
     build_openssl()
