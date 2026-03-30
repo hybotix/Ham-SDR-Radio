@@ -510,28 +510,31 @@ def validate_operator_license():
     log.info("Pre-flight: Validating operator license...")
 
     # Check if callsign is already configured
+    PLACEHOLDER_VALUES = {"YOUR_CALLSIGN", "--CALLSIGN", "CALLSIGN", "", "YOURCALLSIGN"}
     callsign = None
     if SETTINGS_PATH.exists():
         try:
             settings = json.loads(SETTINGS_PATH.read_text())
-            callsign = settings.get("operator", {}).get("callsign", "").strip()
-            if callsign and callsign != "YOUR_CALLSIGN":
-                log.info(f"  Using callsign from settings: {callsign}")
-            else:
-                callsign = None
+            cs = settings.get("operator", {}).get("callsign", "").strip().upper()
+            if cs and cs not in PLACEHOLDER_VALUES:
+                log.info(f"  Using callsign from settings: {cs}")
+                callsign = cs
         except Exception:
-            callsign = None
+            pass
 
     if not callsign:
-        log.info("  No callsign configured yet.")
-        try:
-            callsign = input("  Enter your amateur radio callsign: ").strip().upper()
-        except (EOFError, KeyboardInterrupt):
-            log.info("")
-            abort("License validation cancelled.")
-
-    if not callsign:
-        abort("A valid callsign is required to proceed.")
+        log.info("  No callsign configured yet -- please enter your callsign.")
+        log.info("")
+        while not callsign:
+            try:
+                cs = input("  Enter your amateur radio callsign: ").strip().upper()
+            except (EOFError, KeyboardInterrupt):
+                log.info("")
+                abort("License validation cancelled.")
+            if cs and cs not in PLACEHOLDER_VALUES:
+                callsign = cs
+            else:
+                log.warning("  Invalid callsign -- please try again.")
 
     # Invoke license_advisor
     advisor = Path(__file__).resolve().parent / "license_advisor-v0.0.1.py"
