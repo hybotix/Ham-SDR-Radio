@@ -1561,29 +1561,26 @@ def check_path():
     log.info("Pre-flight: Checking PATH configuration...")
     path_entries = os.environ.get("PATH", "").split(":")
 
-    # System directories that must NOT appear before /usr/local/bin
-    system_dirs = {"/usr/bin", "/bin", "/usr/sbin", "/sbin"}
+    # Requirement: /usr/local/bin must appear before /usr/bin in PATH
+    try:
+        local_bin_idx = path_entries.index("/usr/local/bin")
+    except ValueError:
+        local_bin_idx = None
 
-    local_bin_idx = None
-    blocking_dir = None
+    try:
+        usr_bin_idx = path_entries.index("/usr/bin")
+    except ValueError:
+        usr_bin_idx = None
 
-    for i, entry in enumerate(path_entries):
-        if entry == "/usr/local/bin":
-            local_bin_idx = i
-            break
-        if entry in system_dirs:
-            blocking_dir = entry
-            break
-
-    if local_bin_idx is not None:
-        log.info(f"  /usr/local/bin found at PATH position {local_bin_idx + 1} — OK")
+    if local_bin_idx is not None and (usr_bin_idx is None or local_bin_idx < usr_bin_idx):
+        log.info(f"  /usr/local/bin is before /usr/bin in PATH — OK")
         return
 
-    if blocking_dir:
-        log.warning(f"  /usr/local/bin is blocked by system directory '{blocking_dir}' in PATH")
+    if local_bin_idx is None:
+        log.warning("  /usr/local/bin is not in PATH at all.")
     else:
-        log.warning("  /usr/local/bin not found in PATH")
-    log.warning("  /usr/local/bin must appear before system directories in PATH.")
+        log.warning(f"  /usr/local/bin (position {local_bin_idx+1}) is AFTER /usr/bin (position {usr_bin_idx+1}) in PATH.")
+    log.warning("  /usr/local/bin must appear before /usr/bin in PATH.")
     log.info("")
 
     shell_name, rc_path = detect_shell_rc()
